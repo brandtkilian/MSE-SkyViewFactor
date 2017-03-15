@@ -1,7 +1,6 @@
 from core.OpticalRectifier import OpticalRectifier
 from core.SkySegmentor import SkySegmentor
 from tools.FileManager import FileManager
-from core.Nagao import NagaoFilter
 import os, ntpath
 import re
 import time
@@ -50,27 +49,28 @@ def rectifyAllInputs(inputFolder, outputFolder):
 
     tableSrc = [19, 20, 21, 23, 27, 27, 28, 28, 28]
     imgViewAngle = 180
-    scaleFactor = 1.2
-    scaleOffset = 0
+    imgWidth = 1440
+    imgHeight = 1440
 
-    oprec = OpticalRectifier(tableSrc, imgViewAngle, scaleFactor, scaleOffset)
+    oprec = OpticalRectifier(tableSrc, imgViewAngle, imgWidth, imgHeight)
 
     length = len(toTreat)
     i = 1
     ell_time = 0
 
     print "%d images remaining" % length
-    for file in toTreat:
+    for file in sorted(toTreat):
         startTime = time.time()
-        print "%d/%d: processing file %s" % (i, length, file)
         imgSrc = FileManager.LoadImage(file)
         imgres = oprec.rectifyImage(imgSrc)
-        print "%s/%s" %(outputFolder, path_leaf(file))
-        FileManager.SaveImage(imgres, path_leaf(file))
 
+        FileManager.SaveImage(imgres, path_leaf(file))
         ell_time += time.time() - startTime
-        #print "%f, %f" % ((ell_time / i), (length - i))
-        print "remaining time estimate %d minutes" % (((ell_time / i) * (length - i)) / 60)
+
+        if i % 50 == 0:
+            print "%s/%s" % (outputFolder, path_leaf(file))
+            print "%d/%d: processed file %s" % (i, length, file)
+            print "remaining time estimate %d minutes" % (((ell_time / i) * (length - i)) / 60)
 
         i += 1
 
