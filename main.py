@@ -6,7 +6,8 @@ import re
 import time
 
 def rectifyOpticTest():
-    tableSrc = [19, 20, 21, 23, 27, 27, 28, 28, 28]
+    #tableSrc = [19, 20, 21, 23, 27, 27, 28, 28, 28]
+    tableSrc = [0, 49, 49, 51, 56, 61, 69, 76, 84, 88, 93]
     imgViewAngle = 180
     scaleFactor = 1.2
     scaleOffset = 0
@@ -43,11 +44,11 @@ def rectifyAllInputs(inputFolder, outputFolder):
         head, tail = ntpath.split(path)
         return tail or ntpath.basename(head)
 
-    files = [f for f in os.listdir(inputFolder) if re.match(r'[0-9]+.*\.jpg', f)]
-    alreadyTreated = [f for f in os.listdir(outputFolder) if re.match(r'[0-9]+.*\.jpg', f)]
+    files = [f for f in os.listdir(inputFolder) if re.match(r'[0-9]+.*\.jpg', f.lower())]
+    alreadyTreated = [f for f in os.listdir(outputFolder) if re.match(r'[0-9]+.*\.jpg', f.lower())]
     toTreat = list(set(files) - set(alreadyTreated))
 
-    tableSrc = [19, 20, 21, 23, 27, 27, 28, 28, 28]
+    tableSrc = [24, 25, 25, 26, 26, 27, 27, 29, 29, 32, 32, 36, 36, 40, 41, 43, 44]
     imgViewAngle = 180
     imgWidth = 1440
     imgHeight = 1440

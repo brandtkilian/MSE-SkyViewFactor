@@ -1,38 +1,40 @@
 import numpy as np
 import math
 from tools.FuncTimeProfiler import profile
+import cv2
+from tools.FileManager import FileManager
 
 
 class OpticalRectifier:
 
     def __init__(self, tableSrc, imgViewAngle, imgWidth, imgHeight):
-        self.tableSrc = []
-        sum = 0.0
-        for dst in tableSrc:
-            sum += dst
-            self.tableSrc.append(float(sum))
+        self.tableSrc = tableSrc
         self.imgViewAngle = imgViewAngle
         self.mapping = None
         self.InitializeCoordsTransform(imgWidth, imgHeight)
+        self.mask = np.zeros((imgHeight, imgWidth, 1), np.uint8)
+        cv2.circle(self.mask, (imgWidth/2, imgHeight/2), imgWidth/2, (255, 255, 255), -1)
 
 
     @profile
     def rectifyImage(self, img):
-        result = img[self.mapping[..., 1], self.mapping[..., 0]]
-        return result
+        rectified = img[self.mapping[..., 1], self.mapping[..., 0]]
+        masked = cv2.bitwise_and(rectified, rectified, mask=self.mask)
+        return masked
 
     @profile
     def InitializeCoordsTransform(self, width, height):
         if self.mapping is None:
             self.mapping = np.zeros((height, width, 2), np.int32)
-            self.mask = np.ones((height, width, 1), np.uint8)
 
             rI = width / 2.0
             xCenter = width / 2
             yCenter = height / 2
 
             tableCorr = self.getRectifiedCalibTable(rI)
-            f = np.poly1d(np.polyfit(tableCorr, np.asarray(self.tableSrc) * rI / self.tableSrc[-1], 2))
+            summedTableSrc = [0] + [sum(self.tableSrc[:i+1]) for i in range(len(self.tableSrc))]
+
+            f = np.poly1d(np.polyfit(tableCorr, np.asarray(summedTableSrc), 3))
 
             for yCor in range(height):
                 for xCor in range(width):
@@ -45,7 +47,7 @@ class OpticalRectifier:
                         alpha = math.pi - alpha
                     rSrc = f(rCor)
 
-                    if (rSrc) < rI:
+                    if math.fabs(rSrc) < rI:
                         xSrc = int(xCenter + rSrc * math.sin(alpha))
                         ySrc = int(yCenter - rSrc * math.cos(alpha))
                         self.mapping[yCor, xCor, 0] = xSrc
@@ -55,4 +57,4 @@ class OpticalRectifier:
     def getRectifiedCalibTable(self, rI):
         length = len(self.tableSrc)
         assert length > 0
-        return np.asarray([(rI / length) * (i + 1) for i in range(length)])
+        return np.asarray([0] + [(rI / length) * (i+1) for i in range(length)])
