@@ -1,9 +1,12 @@
 from core.OpticalRectifier import OpticalRectifier
 from core.SkySegmentor import SkySegmentor
 from tools.FileManager import FileManager
+from tools.MaskMerger import MasksMerger
 import os, ntpath
 import re
 import time
+import numpy as np
+import cv2
 
 def rectifyOpticTest():
     #tableSrc = [19, 20, 21, 23, 27, 27, 28, 28, 28]
@@ -75,9 +78,16 @@ def rectifyAllInputs(inputFolder, outputFolder):
 
         i += 1
 
+def mergeMasks():
+    mask = np.zeros((1440, 1440, 1), np.uint8)
+    cv2.circle(mask, (1440 / 2, 1440 / 2), 1440 / 2, (255, 255, 255), -1)
+    mm = MasksMerger("images/build/", "images/sky/", mask)
+    mm.MergeAll()
+
 if __name__ == '__main__':
     #rectifyOpticTest()
     #segmentationKMeans()
     #segmentationByColor()
     #test()
-    rectifyAllInputs("images/", "outputs")
+    #rectifyAllInputs("images/", "outputs")
+    mergeMasks()
