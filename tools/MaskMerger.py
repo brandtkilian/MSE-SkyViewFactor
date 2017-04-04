@@ -42,13 +42,13 @@ class MasksMerger():
                     eX = rect[0] + 3 * rect[2] + 1
                     eX = eX if eX < width else width
                     crop = merged[sY:eY, sX:eX]
-                    bc, rc, gc = cv2.split(crop)
+                    bc, gc, rc = cv2.split(crop)
                     nb = cv2.countNonZero(bc)
                     ng = cv2.countNonZero(gc)
                     nr = cv2.countNonZero(rc)
-                    counts = (nb, nr)
-                    colors = [(255, 0, 0), (0, 0, 255)]
-                    winner = sorted(enumerate(counts), reverse=True)
+                    counts = (nb, ng, nr)
+                    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+                    winner = sorted(enumerate(counts), key=lambda k: k[1], reverse=True)
                     idx, count = winner[0]
                     color = colors[idx]
                     cv2.drawContours(merged, [c], 0, color, -1)
