@@ -3,6 +3,9 @@ import math
 from tools.FuncTimeProfiler import profile
 import cv2
 from tools.FileManager import FileManager
+import os, ntpath
+import re
+import time
 
 
 class OpticalRectifier:
@@ -53,8 +56,37 @@ class OpticalRectifier:
                         self.mapping[yCor, xCor, 0] = xSrc
                         self.mapping[yCor, xCor, 1] = ySrc
 
-
     def getRectifiedCalibTable(self, rI):
         length = len(self.tableSrc)
         assert length > 0
         return np.asarray([0] + [(rI / length) * (i+1) for i in range(length)])
+
+    def rectifyAllInputs(self, inputFolder, outputFolder):
+        def path_leaf(path):
+            head, tail = ntpath.split(path)
+            return tail or ntpath.basename(head)
+
+        reg = r'\w+\.(jpg|gif|png)'
+        files = [f for f in os.listdir(inputFolder) if re.match(reg, f.lower())]
+        alreadyTreated = [f for f in os.listdir(outputFolder) if re.match(reg, f.lower())]
+        toTreat = list(set(files) - set(alreadyTreated))
+
+        length = len(toTreat)
+        i = 1
+        ell_time = 0
+
+        print "%d images remaining" % length
+        for file in sorted(toTreat):
+            startTime = time.time()
+            imgSrc = FileManager.LoadImage(file)
+            imgres = self.rectifyImage(imgSrc)
+
+            FileManager.SaveImage(imgres, path_leaf(file), outputFolder)
+            ell_time += time.time() - startTime
+
+            if i % 50 == 0:
+                print "%s/%s" % (outputFolder, path_leaf(file))
+                print "%d/%d: processed file %s" % (i, length, file)
+                print "remaining time estimate %d minutes" % (((ell_time / i) * (length - i)) / 60)
+
+            i += 1

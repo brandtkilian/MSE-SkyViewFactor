@@ -2,8 +2,6 @@ import cv2
 import glob
 import ntpath
 from tools.FileManager import FileManager
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 class MasksMerger():
@@ -12,7 +10,6 @@ class MasksMerger():
         self.path1 = buildPath
         self.path2 = skyPath
         self.mask = mask
-
 
     def MergeAll(self, outputDir="outputs/"):
         files1 = [f for f in glob.iglob("%s/*.png" % self.path1)]
@@ -59,4 +56,4 @@ class MasksMerger():
             idx = conflicts > 0
             merged[idx] = (255, 255, 255)
             merged = cv2.bitwise_and(merged, merged, None, self.mask)
-            FileManager.SaveImage(merged, ntpath.basename(files1[i]))
+            FileManager.SaveImage(merged, files1[i])
