@@ -155,7 +155,7 @@ class DatasetManager:
         if not os.path.exists(train_path_src):
             os.makedirs(train_path_src)
 
-        boudaryTests = int(len(labels) / self.test_percentage)
+        boudaryTests = 0 if self.test_percentage == 0 else int(len(labels) / self.test_percentage)
         print "%d images will be splitted and used for tests" % boudaryTests
 
         trainSrc = shuffledSrc[boudaryTests:]
@@ -185,13 +185,13 @@ class DatasetManager:
             FileManager.SaveImage(resizedLblImg, testLabels[i], test_path_labels)
 
 
+    def resizeImages(self, input_dir, output_dir):
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
+        img_names = sorted([f for f in os.listdir(input_dir)])
 
-
-
-
-
-
-
-
-
+        for i in range(len(img_names)):
+            img = FileManager.LoadImage(img_names[i], input_dir)
+            resizedSrcImg = cv2.resize(img, self.targetSize, interpolation=cv2.INTER_CUBIC)
+            FileManager.SaveImage(resizedSrcImg, img_names[i], output_dir)
