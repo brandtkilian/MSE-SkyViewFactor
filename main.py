@@ -39,14 +39,16 @@ def mergeMasks():
     mm = MasksMerger("images/build/", "images/sky/", mask)
     mm.MergeAll()
 
-def prepareDataset():
+
+def prepareDataset(resize_tests_images=False):
     mask = np.zeros((1440, 1440, 1), np.uint8)
     cv2.circle(mask, (1440 / 2, 1440 / 2), 1440 / 2, (255, 255, 255), -1)
     dmgr = DatasetManager(mask, 0, (360, 360))
     if dmgr.checkForLabelsSanity() == 0:
         dmgr.createAnotedImages()
         dmgr.createFinalDataset()
-        dmgr.resizeImages("/home/brandtk/Desktop/svf_samples/", "./test_images/")
+        if resize_tests_images:
+            dmgr.resizeImages("/home/brandtk/Desktop/svf_samples/", "./test_images/")
 
 if __name__ == '__main__':
     #segmentationKMeans()
@@ -54,4 +56,4 @@ if __name__ == '__main__':
     #test()
     #rectifyAllInputs("images/", "outputs")
     #mergeMasks()
-    prepareDataset()
+    prepareDataset() # (True)

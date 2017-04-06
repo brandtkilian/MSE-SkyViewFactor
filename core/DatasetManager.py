@@ -27,18 +27,29 @@ class DatasetManager:
 
 
 
-    def remaskAllLabels(self):
+    def remaskLabels(self):
         reg = r'\w+\.(jpg|jpeg|png)'
         files = [f for f in os.listdir(self.labels_path) if re.match(reg, f.lower())]
-
         for f in files:
             imgSrc = FileManager.LoadImage(f, self.labels_path)
             imgSrc = cv2.bitwise_and(imgSrc, imgSrc, None, self.mask)
             FileManager.SaveImage(imgSrc, f, self.labels_path)
 
+    def fillVoidClassInSource(self, src, idx, color):
+        assert len(color) == 3
+
+        b, g, r = cv2.split(src)
+        b = b.reshape((b.shape[0], b.shape[1], 1))
+        g = g.reshape((g.shape[0], g.shape[1], 1))
+        r = r.reshape((r.shape[0], r.shape[1], 1))
+        b[idx] = color[0]
+        g[idx] = color[1]
+        r[idx] = color[2]
+        return cv2.merge((b, g, r))
+
     def checkForLabelsSanity(self, output_unsanity_masks_path="outputs/unsanityMask", output_sane_labels_path="outputs/labels"):
 
-        self.remaskAllLabels()
+        self.remaskLabels()
 
         if not os.path.exists(output_unsanity_masks_path):
             os.makedirs(output_unsanity_masks_path)
@@ -164,9 +175,13 @@ class DatasetManager:
         testSrc = shuffledSrc[:boudaryTests:]
         testLabels = shuffledLabels[:boudaryTests]
 
+        magenta = (255, 0, 255)
+        idx_magenta = cv2.bitwise_not(self.mask) > 0
+
         print "Creating the training dataset"
         for i in range(len(trainSrc)):
             srcImg = FileManager.LoadImage(trainSrc[i], self.src_path)
+            srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
             lblImg = FileManager.LoadImage(trainLabels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
             resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
@@ -177,6 +192,7 @@ class DatasetManager:
         print "Creating the testing dataset"
         for i in range(len(testSrc)):
             srcImg = FileManager.LoadImage(testSrc[i], self.src_path)
+            srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
             lblImg = FileManager.LoadImage(testLabels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
             resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
