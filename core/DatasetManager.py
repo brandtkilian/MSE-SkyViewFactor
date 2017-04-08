@@ -7,6 +7,7 @@ import numpy as np
 from core.ClassesEnum import Classes
 from sklearn.utils import shuffle
 
+
 class DatasetManager:
 
     def __init__(self, mask, test_percentage, target_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annoted", dataset_output_path="outputs/dataset"):
@@ -181,7 +182,7 @@ class DatasetManager:
         print "Creating the training dataset"
         for i in range(len(trainSrc)):
             srcImg = FileManager.LoadImage(trainSrc[i], self.src_path)
-            srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
+            #srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
             lblImg = FileManager.LoadImage(trainLabels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
             resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
@@ -192,7 +193,7 @@ class DatasetManager:
         print "Creating the testing dataset"
         for i in range(len(testSrc)):
             srcImg = FileManager.LoadImage(testSrc[i], self.src_path)
-            srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
+            #srcImg = self.fillVoidClassInSource(srcImg, idx_magenta, magenta)
             lblImg = FileManager.LoadImage(testLabels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
             resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)

@@ -46,3 +46,4 @@ images/
 outputs/
 cnn/dataset
 cnn/test_images
+predictions/

@@ -6,7 +6,6 @@ import keras.models as models
 from keras.layers.core import Dropout, Activation, Reshape, Permute
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, UpSampling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
-from Layers.Unpooling2D import UnPooling2D
 
 
 def create_encoding_layers():
