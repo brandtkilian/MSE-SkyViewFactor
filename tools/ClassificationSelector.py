@@ -27,7 +27,6 @@ def beginSelection(src_folder, pred_folder, out_folder, skip=0):
         sky = cv2.bitwise_and(src, src, None, sky_mask)
         veg = cv2.bitwise_and(src, src, None, veg_mask)
         build = cv2.bitwise_and(src, src, None, build_mask)
-        cv2.imshow("a", sky_mask)
 
         empty = np.zeros(src.shape, np.uint8)
 
@@ -40,10 +39,7 @@ def beginSelection(src_folder, pred_folder, out_folder, skip=0):
 
         k = cv2.waitKey(0) & 255
 
-        a = preds[i].split(".")
-        a[0] += "p"
-        b = ".".join(a)
-        pred_comp_path = os.path.join(pred_folder, b)
+        pred_comp_path = os.path.join(pred_folder, preds[i])
         src_comp_path = os.path.join(src_folder, srcs[i])
 
         if k == 27:  # esc to exit
@@ -55,6 +51,7 @@ def beginSelection(src_folder, pred_folder, out_folder, skip=0):
             i += 1
         elif k == ord('n'): # no don't keep
             i += 1
+            cv2.destroyAllWindows()
             continue
         cv2.destroyAllWindows()
 

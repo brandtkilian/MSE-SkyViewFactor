@@ -58,5 +58,5 @@ if __name__ == '__main__':
     #rectifyAllInputs("images/", "outputs")
     #mergeMasks()
     #prepareDataset(resize_tests_images=True)
-    cnn_main(width, heigth)
-    #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")
+    #cnn_main(width, heigth)
+    beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")
