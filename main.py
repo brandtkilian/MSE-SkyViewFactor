@@ -3,6 +3,7 @@ from core.SkySegmentor import SkySegmentor
 from core.DatasetManager import DatasetManager
 from tools.FileManager import FileManager
 from tools.MaskMerger import MasksMerger
+from tools.ClassificationSelector import beginSelection
 
 import numpy as np
 import cv2
@@ -58,3 +59,4 @@ if __name__ == '__main__':
     #mergeMasks()
     #prepareDataset(resize_tests_images=True)
     cnn_main(width, heigth)
+    #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")

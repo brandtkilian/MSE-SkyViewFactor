@@ -5,12 +5,9 @@ from tools.FileManager import FileManager
 import shutil
 
 
-def beginSelection(src_folder, pred_folder, out_src_folder, out_pred_folder, skip=0):
-    if not os.path.exists(out_src_folder):
-        os.makedirs(out_src_folder)
-
-    if not os.path.exists(out_pred_folder):
-        os.makedirs(out_pred_folder)
+def beginSelection(src_folder, pred_folder, out_folder, skip=0):
+    if not os.path.exists(out_folder):
+        os.makedirs(out_folder)
 
     reg = r'\w+\.(jpg|jpeg|png)'
     preds = sorted([f for f in os.listdir(pred_folder) if re.match(reg, f.lower())])
@@ -30,6 +27,7 @@ def beginSelection(src_folder, pred_folder, out_src_folder, out_pred_folder, ski
         sky = cv2.bitwise_and(src, src, None, sky_mask)
         veg = cv2.bitwise_and(src, src, None, veg_mask)
         build = cv2.bitwise_and(src, src, None, build_mask)
+        cv2.imshow("a", sky_mask)
 
         empty = np.zeros(src.shape, np.uint8)
 
@@ -40,17 +38,20 @@ def beginSelection(src_folder, pred_folder, out_src_folder, out_pred_folder, ski
 
         cv2.imshow(preds[i], tot)
 
-        k = cv2.waitKey(0)
+        k = cv2.waitKey(0) & 255
 
-        pred_comp_path = os.path.join(pred_folder, preds[i])
+        a = preds[i].split(".")
+        a[0] += "p"
+        b = ".".join(a)
+        pred_comp_path = os.path.join(pred_folder, b)
         src_comp_path = os.path.join(src_folder, srcs[i])
 
         if k == 27:  # esc to exit
             break
 
         elif k == ord('y'): # yes keep
-            shutil.copy(pred_comp_path, out_pred_folder)
-            shutil.copy(src_comp_path, out_src_folder)
+            shutil.copy(pred_comp_path, out_folder)
+            shutil.copy(src_comp_path, out_folder)
             i += 1
         elif k == ord('n'): # no don't keep
             i += 1

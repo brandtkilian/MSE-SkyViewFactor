@@ -80,7 +80,7 @@ def colorize_void(idx, color, src_img):
     return cv2.merge((b, g, r))
 
 
-def get_images_for_tests(image_path, width, height, magentize=True):
+def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
     img_names = sorted([f for f in os.listdir(image_path)])
 
     img_files = []
@@ -89,13 +89,14 @@ def get_images_for_tests(image_path, width, height, magentize=True):
     mask = get_void_mask(width, height)
     idx = mask > 0
 
-    for i in range(len(img_names)):
+    length = len(img_names) if limit < 0 else limit
+
+    for i in range(length):
         src_img = normalized(FileManager.LoadImage(img_names[i], image_path))
         if magentize:
             src_img = colorize_void(idx, color, src_img)
-        img_files.append(np.rollaxis(src_img, 2))
 
-    return img_names, np.array(img_files)
+        yield img_names[i], np.rollaxis(src_img, 2)
 
 
 def train_model(width, height, nblbl, dataset_path, weights_filepath):
@@ -128,25 +129,26 @@ def test_model(width, height, nblbl, test_images_path, weights_filepath, predict
     Sky = [255, 0, 0]
     Building = [0, 255, 0]
     Vegetation = [0, 0, 255]
-    Void = [255, 255, 255]
+    Void = [0, 0, 0]
 
     label_colours = np.array([Void, Sky, Building, Vegetation])
 
-    src_path, test_data = get_images_for_tests(test_images_path, width, height)
+    #src_path, test_data = get_images_for_tests(test_images_path, width, height, limit=-1)
 
     if not os.path.exists(prediction_output_path):
         os.makedirs(prediction_output_path)
 
-    for i in range(len(test_data)):
-        output = autoencoder.predict_proba(test_data[i:i+1])
+    for (img_name, test_data) in get_images_for_tests(test_images_path, width, height, limit=-1):
+        output = autoencoder.predict_proba(np.array([test_data]))
         pred = visualize(np.argmax(output[0], axis=1).reshape((height, width)), label_colours, nblbl)
-        cv2.imwrite(os.path.join(prediction_output_path, src_path[i]), pred)
+        cv2.imwrite(os.path.join(prediction_output_path, img_name.split(".")[0]+".png"), pred)
 
 
 def visualize(temp, label_colours, nblbl):
-    r = temp.copy()
-    g = temp.copy()
-    b = temp.copy()
+    black = np.zeros(temp.shape, np.uint8)
+    r = black.copy()
+    g = black.copy()
+    b = black.copy()
     for l in range(0, nblbl):
         r[temp == l] = label_colours[l, 0]
         g[temp == l] = label_colours[l, 1]
