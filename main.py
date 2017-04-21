@@ -7,6 +7,9 @@ from tools.ClassificationSelector import beginSelection
 
 import numpy as np
 import cv2
+import os
+import re
+from shutil import copy
 from cnn.cnn_main import main as cnn_main
 
 width = 480
@@ -47,16 +50,32 @@ def mergeMasks():
 def prepareDataset(dataset_output_path="./cnn/dataset", resize_tests_images=False):
     mask = np.zeros((1440, 1440, 1), np.uint8)
     cv2.circle(mask, (1440 / 2, 1440 / 2), 1440 / 2, (255, 255, 255), -1)
-    dmgr = DatasetManager(mask, 0, (width, heigth), dataset_output_path=dataset_output_path)
+    dmgr = DatasetManager(mask, 15, (width, heigth), dataset_output_path=dataset_output_path)
     if dmgr.checkForLabelsSanity() == 0:
         dmgr.createAnotedImages()
         dmgr.createFinalDataset()
         if resize_tests_images:
-            dmgr.resizeImages("/home/brandtk/Desktop/svf_samples/", "./cnn/test_images/")
+            dmgr.resizeImages("/home/brandtk/Desktop/svf_samples", "./cnn/test_images/")
+        return dmgr.classes_weigth
+
+def prepareNewLabels(final_size, labels_path="images/newlabels", src_path="images/src", output_path="outputs/"):
+    reg = r'\w+\.(jpg|jpeg|png)'
+    labels = [f for f in os.listdir(labels_path) if re.match(reg, f.lower())]
+
+    if not os.path.exists(os.path.join(output_path, "newlabels_src")):
+        os.makedirs(os.path.join(output_path, "newlabels_src"))
+
+    for lab in labels:
+        img = FileManager.LoadImage(lab, labels_path)
+        resized = cv2.resize(img, final_size, interpolation=cv2.INTER_NEAREST)
+        FileManager.SaveImage(resized, lab, os.path.join(output_path, "newlabels"))
+        src_name = ".".join([lab.split(".")[0], "jpg"])
+        copy(os.path.join(src_path, src_name), os.path.join(output_path, "newlabels_src", src_name))
 
 if __name__ == '__main__':
     #rectifyAllInputs("images/", "outputs")
     #mergeMasks()
-    #prepareDataset(resize_tests_images=True)
-    #cnn_main(width, heigth)
-    beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")
+    class_weights = prepareDataset(resize_tests_images=False)
+    cnn_main(width, heigth, class_weights)
+    #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")
+    #prepareNewLabels((1440, 1440))

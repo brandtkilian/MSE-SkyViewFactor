@@ -1,5 +1,6 @@
 from enum import IntEnum
 
+
 class Classes(IntEnum):
     VOID = 0
     SKY = 1

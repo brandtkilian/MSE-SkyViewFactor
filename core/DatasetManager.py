@@ -24,9 +24,7 @@ class DatasetManager:
             elif len(target_size) > 2:
                 self.targetSize = (self.targetSize[0], self.targetSize[1])
 
-        self.classes_weigth = [0, 0, 0, 0]
-
-
+        self.classes_weigth = dict({Classes.SKY: 0, Classes.BUILT: 0, Classes.VEGETATION: 0, Classes.VOID: 0})
 
     def remaskLabels(self):
         reg = r'\w+\.(jpg|jpeg|png)'
@@ -115,7 +113,6 @@ class DatasetManager:
             idxVegetation = g > 0
             idxBuild = r > 0
 
-
             annots[idxSky] = Classes.SKY
             annots[idxVegetation] = Classes.VEGETATION
             annots[idxBuild] = Classes.BUILT
@@ -127,9 +124,10 @@ class DatasetManager:
 
             FileManager.SaveImage(annots, f, self.annot_output_path)
 
-        self.classes_weigth = np.asarray(self.classes_weigth, np.float32)
+        tot_pixels = sum(self.classes_weigth.values())
+        self.classes_weigth = {k: 1/(v/float(tot_pixels)) for k, v in self.classes_weigth.items()}
 
-        print "Classes weigth ", 1.0 / (self.classes_weigth / np.sum(self.classes_weigth))
+        print "Classes weigths ", self.classes_weigth
         self.labels_path = self.annot_output_path
 
     def createFinalDataset(self):
@@ -167,7 +165,7 @@ class DatasetManager:
         if not os.path.exists(train_path_src):
             os.makedirs(train_path_src)
 
-        boudaryTests = 0 if self.test_percentage == 0 else int(len(labels) / self.test_percentage)
+        boudaryTests = 0 if self.test_percentage == 0 else int(len(labels) / 100.0 * self.test_percentage)
         print "%d images will be splitted and used for tests" % boudaryTests
 
         trainSrc = shuffledSrc[boudaryTests:]
