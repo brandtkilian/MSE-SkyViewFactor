@@ -44,8 +44,10 @@ tmtagsHistory
 # project specific
 images/
 outputs/
-cnn/dataset
-cnn/test_images
+cnn/dataset/
+cnn/test_images/
 predictions/
 predictions*/
 cnn/preview/
+cnn/weigths/before/
+cnn/weigths/graphs/

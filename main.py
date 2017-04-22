@@ -4,6 +4,7 @@ from core.DatasetManager import DatasetManager
 from tools.FileManager import FileManager
 from tools.MaskMerger import MasksMerger
 from tools.ClassificationSelector import beginSelection
+from tools.ImageDataGenerator import ImageDataGenerator
 
 import numpy as np
 import cv2
@@ -73,9 +74,6 @@ def prepareNewLabels(final_size, labels_path="images/newlabels", src_path="image
         copy(os.path.join(src_path, src_name), os.path.join(output_path, "newlabels_src", src_name))
 
 if __name__ == '__main__':
-    #rectifyAllInputs("images/", "outputs")
-    #mergeMasks()
-    class_weights = prepareDataset(resize_tests_images=False)
+    class_weights = {0: 1.9991311197110881, 1: 4.768665483757782, 2: 9.548975463506991, 3: 5.39499062619272}
+    #class_weights = prepareDataset(resize_tests_images=False)
     cnn_main(width, heigth, class_weights)
-    #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "/home/brandtk/SVF-tocorrect/selected")
-    #prepareNewLabels((1440, 1440))

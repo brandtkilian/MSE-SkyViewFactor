@@ -140,18 +140,18 @@ class DatasetManager:
 
         assert len(src) == len(labels)
 
-        test_path = os.path.join(self.dataset_output_path, "tests")
+        valid = os.path.join(self.dataset_output_path, "valid")
         train_path = os.path.join(self.dataset_output_path, "train")
 
-        if not os.path.exists(test_path):
-            os.makedirs(test_path)
+        if not os.path.exists(valid):
+            os.makedirs(valid)
         if not os.path.exists(train_path):
             os.makedirs(train_path)
 
         shuffledSrc, shuffledLabels = shuffle(src, labels)
 
-        test_path_labels = os.path.join(test_path, "labels")
-        test_path_src = os.path.join(test_path, "src")
+        test_path_labels = os.path.join(valid, "labels")
+        test_path_src = os.path.join(valid, "src")
 
         train_path_labels = os.path.join(train_path, "labels")
         train_path_src = os.path.join(train_path, "src")

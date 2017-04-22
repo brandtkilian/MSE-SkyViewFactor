@@ -1,0 +1,3 @@
+[path]	[input_size]	[nb_epoch]	[batch_size]	[train_data_sz]	[val_data_sz]	[magentize]	[normalize]	[data_augmentation]	[sample_per_epoch]	[nb_val_sample]	[graph_path]	[comments]
+
+./cnn/weigths/svf_2017-04-22_18:09:14.hdf5	480x480	2	2	165	28	True	True	True	10	10	./cnn/weights/graphs/svf_2017-04-22_18:09:14	

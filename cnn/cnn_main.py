@@ -2,8 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import os
 from itertools import izip
-
-from theano.gpuarray.opt import local_gpua_gemmbatch_output_merge
+from tools.ImageDataGenerator import ImageDataGenerator
 
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -13,104 +12,49 @@ import tensorflow as tf
 from .Model.ModelBuilding import create_model
 import cv2
 import numpy as np
-from tools.FileManager import FileManager
-
-def normalized(img):
-    img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-
-    # equalize the histogram of the Y channel
-    img_yuv[:,:,0] = cv2.equalizeHist(img_yuv[:,:,0])
-
-    # convert the YUV image back to RGB format
-    img_output = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
-
-    return img_output
-
-def normalized_old(rgb):
-    norm = np.zeros(rgb.shape, np.float32)
-
-    b, g, r = cv2.split(rgb)
-
-    norm[:, :, 0] = cv2.equalizeHist(b)
-    norm[:, :, 1] = cv2.equalizeHist(g)
-    norm[:, :, 2] = cv2.equalizeHist(r)
-
-    return norm
+import matplotlib.pyplot as plt
+import datetime
+import ntpath
 
 
-def binarylab(labels, width, height, nblbl):
-    x = np.zeros([height, width, nblbl])
-    for i in range(height):
-        for j in range(width):
-            x[i, j, labels[i][j]] = 1
-    return x
-
-
-def prep_data(base_path, from_path, width, height, nblbl, magentize=True):
-    data_shape = width * height
-
+def prep_data(base_path, from_path, width, height, nblbl, magentize=True, normalize=True):
     train_data = []
     train_label = []
 
     img_path = os.path.join(base_path, from_path, "src")
     lbl_path = os.path.join(base_path, from_path, "labels")
 
-    train_imgs = sorted([f for f in os.listdir(img_path)])
-    label_imgs = sorted([f for f in os.listdir(lbl_path)])
+    idg = ImageDataGenerator(img_path, lbl_path, width, height, nblbl, normalize_img=normalize, magentize=magentize)
 
-    assert len(train_imgs) == len(label_imgs)
+    i = 0
+    for img in idg.image_generator():
+        train_data.append(img)
+        i += 1
+        if i == len(idg.img_files):
+            break
 
-    color = (255, 0, 255)
-    mask = get_void_mask(height, width)
-    idx = mask > 0
+    i = 0
+    for lbl in idg.label_generator():
+        train_label.append(lbl)
+        i += 1
+        if i == len(idg.lbl_files):
+            break
 
-    for i in range(len(train_imgs)):
-        src_img = normalized(FileManager.LoadImage(train_imgs[i], img_path))
-        lbl_img = FileManager.LoadImage(label_imgs[i], lbl_path)
+    return np.array(train_data), np.array(train_label), idg.img_files, idg.lbl_files
 
-        if magentize:
-            src_img = colorize_void(idx, color, src_img)
-
-        train_data.append(np.rollaxis(src_img, 2))
-        train_label.append(binarylab(lbl_img[:, :, 0], width, height, nblbl))
-
-    train_label = np.reshape(np.array(train_label), (len(train_data), data_shape, nblbl))
-    return np.array(train_data), train_label, train_imgs, label_imgs
-
-
-def get_void_mask(width, height):
-    mask = np.zeros((height, width, 1), np.uint8)
-    cv2.circle(mask, (width / 2, height / 2), width / 2, (255, 255, 255), -1)
-    mask = cv2.bitwise_not(mask)
-    return mask
-
-
-def colorize_void(idx, color, src_img):
-    b, g, r = cv2.split(src_img)
-    b = b.reshape((b.shape[0], b.shape[1], 1))
-    g = g.reshape((g.shape[0], g.shape[1], 1))
-    r = r.reshape((r.shape[0], r.shape[1], 1))
-    b[idx] = color[0]
-    g[idx] = color[1]
-    r[idx] = color[2]
-    return cv2.merge((b, g, r))
 
 
 def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
-    img_names = sorted([f for f in os.listdir(image_path)])
+    idg = ImageDataGenerator(image_path, image_path, width, height, 4, magentize=magentize, shuffled=False)
 
-    color = (255, 0, 255)
-    mask = get_void_mask(width, height)
-    idx = mask > 0
+    length = len(idg.img_files) if limit < 0 else limit
 
-    length = len(img_names) if limit < 0 else limit
-
-    for i in range(length):
-        src_img = normalized(FileManager.LoadImage(img_names[i], image_path))
-        if magentize:
-            src_img = colorize_void(idx, color, src_img)
-
-        yield img_names[i], np.rollaxis(src_img, 2)
+    i = 0
+    for img in idg.image_generator():
+        yield idg.img_files[i], img
+        i += 1
+        if i == length:
+            break
 
 
 def train_model(width, height, nblbl, dataset_path, weights_filepath):
@@ -118,7 +62,7 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
     np.random.seed(1337)  # for reproducibility
 
     train_data, train_label, _, _ = prep_data(dataset_path, "train", width, height, nblbl)
-    # train_label = np.reshape(train_label, (len(train_data), data_shape, nblbl))
+    valid_data, valid_label, _, _ = prep_data(dataset_path, "valid", width, height, nblbl)
 
     #class_weighting = [2.0, 4.61005688, 10.03329372, 5.45229053]  # dataset 100
     class_weighting = [1.99913108, 4.76866531,  9.54897594, 5.39499044]  # dataset 193
@@ -129,37 +73,57 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
         autoencoder = create_model(width, height, nblbl)
 
         nb_epoch = 100
-        batch_size = 1
-
-        print(train_data.shape)
-        print(train_label.shape)
+        batch_size = 2
 
         s.run(tf.global_variables_initializer())
         history = autoencoder.fit(train_data, train_label, batch_size=batch_size, nb_epoch=nb_epoch, verbose=1,
-                                  class_weight=class_weighting, shuffle=True)
+                                  class_weight=class_weighting, shuffle=True, validation_data=(valid_data, valid_label))
 
         autoencoder.save_weights(weights_filepath)
+        graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
+        save_history_graphs(history, "model", graph_path)
+        add_weights_entry(weights_filepath, (width, height), nb_epoch, batch_size, len(train_data),
+                          len(valid_data), graph_path, data_augmentation=False)
 
 
 def train_model_generators(width, height, nblbl, classes_weights, dataset_path, weights_filepath):
+    class_weighting = [1.99913108, 4.76866531, 9.54897594, 5.39499044]
+    batch_size = 2
+    nb_epoch = 100
+    sample_per_epoch = 250
+    sample_val = 28
+
+    img_path_train = os.path.join(dataset_path, "train", "src")
+    lbl_path_train = os.path.join(dataset_path, "train", "labels")
+
+    img_path_valid = os.path.join(dataset_path, "valid", "src")
+    lbl_path_valid = os.path.join(dataset_path, "valid", "labels")
+
+    idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, 90, 270, rotate=True,
+                                   batch_size=batch_size)
+    idg_valid = ImageDataGenerator(img_path_valid, lbl_path_valid, width, height, nblbl, 90, 270, rotate=True,
+                                   batch_size=batch_size)
+
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as s:
         autoencoder = create_model(width, height, nblbl)
 
-        nb_epoch = 100
-        batch_size = 1
-        img_gen_train, lbl_gen_train = create_data_augmentation_generators(dataset_path, "train", width, height, nblbl, batch_size)
-        img_gen_valid, lbl_gen_valid = create_data_augmentation_generators(dataset_path, "tests", width, height, nblbl, batch_size)
-
-        train_generator = izip(img_gen_train, lbl_gen_train)
-        valid_generator = izip(img_gen_valid, lbl_gen_valid)
+        train_generator = izip(idg_train.image_batch_generator(), idg_train.label_batch_generator())
+        valid_generator = izip(idg_valid.image_batch_generator(), idg_valid.label_batch_generator())
 
         s.run(tf.global_variables_initializer())
-        history = autoencoder.fit_generator(train_generator, samples_per_epoch=300, nb_epoch=nb_epoch, verbose=1,
-                                            validation_data=valid_generator, nb_val_samples=20, class_weight=[])
+        history = autoencoder.fit_generator(train_generator, samples_per_epoch=sample_per_epoch, nb_epoch=nb_epoch, verbose=1,
+                                            validation_data=valid_generator, nb_val_samples=sample_val, class_weight=class_weighting)
 
         autoencoder.save_weights(weights_filepath)
+
+        graph_path = os.path.join("./cnn/weigths/graphs", ntpath.basename(weights_filepath).split(".")[0])
+        save_history_graphs(history, "model", graph_path)
+        add_weights_entry(weights_filepath, (width, height), nb_epoch, batch_size, len(idg_train.img_files),
+                          len(idg_valid.img_files), graph_path, data_augmentation=True, sample_per_epoch=sample_per_epoch,
+                          nb_val_sample=sample_val)
+
 
 def test_model(width, height, nblbl, test_images_path, weights_filepath, prediction_output_path):
     autoencoder = create_model(width, height, nblbl)
@@ -197,67 +161,34 @@ def visualize(temp, label_colours, nblbl):
     return rgb
 
 
-def create_data_augmentation_generators(dataset_path, root, width, height, nblbl, batch_size):
-    from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
+def save_history_graphs(history, title, path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-    seed = 1
-    # train_data, train_label, _, _ = prep_data(dataset_path, "train", width, height, nblbl)
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    outpath = os.path.join(path, "%s-%s.jpg" % (title, "acc"))
+    plt.savefig(outpath)
+    plt.clf()
+    # summarize history for loss
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    outpath = os.path.join(path, "%s-%s.jpg" % (title, "loss"))
+    plt.savefig(outpath)
 
-    train_datagen_args = dict(
-        samplewise_center=False,
-        featurewise_std_normalization=False,
-        samplewise_std_normalization=False,
-        zca_whitening=False,
-        rotation_range=360,
-        width_shift_range=0.,
-        height_shift_range=0.,
-        rescale=1,
-        shear_range=0,
-        zoom_range=0.,
-        horizontal_flip=True,
-        vertical_flip=True,
-        channel_shift_range=0.,
-        fill_mode='constant',
-        cval=0,)
 
-    image_datagen = ImageDataGenerator(**train_datagen_args)
-    labels_datagen = ImageDataGenerator(**train_datagen_args)
-
-    image_generator = image_datagen.flow_from_directory(os.path.join(dataset_path, root, "src"), target_size=(width, height), classes=['.'], class_mode=None, seed=seed, batch_size=batch_size, color_mode='rgb')
-    labels_generator = labels_datagen.flow_from_directory(os.path.join(dataset_path, root, "labels"), target_size=(width, height), classes=['.'], class_mode=None, seed=seed, batch_size=batch_size, color_mode='rgb')
-
-    #train_generator = zip(image_generator, labels_generator)
-
-    color = (255, 0, 255)
-    mask = get_void_mask(height, width)
-    idx = mask > 0
-
-    def img_gen():
-        for batch_img in image_generator:
-            processed_batch = []
-            for img in batch_img:
-                img = img.astype(np.uint8)
-                img = np.swapaxes(img, 0, 2)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-                img = colorize_void(idx, color, img)
-                img = normalized(img)
-                img = np.rollaxis(img, 2)
-                processed_batch.append(img)
-
-            yield np.array(processed_batch)
-
-    def lbl_gen():
-        for batch_lbl in labels_generator:
-            processed_batch = []
-            for lbl in batch_lbl:
-                lbl = lbl.astype(np.uint8)
-                lbl = np.swapaxes(lbl, 0, 2)
-                processed_batch.append(binarylab(lbl[:, :, 0], width, height, nblbl))
-
-            yield np.reshape(np.array(processed_batch), (batch_size, width * height, nblbl))
-
-    return img_gen(), lbl_gen()
-
+def add_weights_entry(path, input_size, nb_epoch, batch_size, train_data_sz, val_data_sz, graph_path, magentize=True, normalize=True, data_augmentation=False, sample_per_epoch=0, nb_val_sample=0, comments=""):
+    with open("./cnn/weights_table.txt", "a") as f:
+        str_insize = "%dx%d" % input_size
+        f.write("%s\t%s\t%d\t%d\t%d\t%d\t%r\t%r\t%r\t%d\t%d\t%s\t%s\n" % (path, str_insize, nb_epoch, batch_size, train_data_sz, val_data_sz, magentize, normalize, data_augmentation, sample_per_epoch, nb_val_sample, graph_path, comments))
 
 
 def main(width, height, classes_weights):
@@ -266,7 +197,7 @@ def main(width, height, classes_weights):
     dataset_path = "./cnn/dataset/"
     test_images_path = "./cnn/test_images/"
 
-    weigths_filepath = "./cnn/weigths_svf_ep%d_s%dx%d_magentavoid-data-augmented.hdf5" % (nb_epoch, width, height)
+    weigths_filepath = "./cnn/weigths/svf_%s.hdf5" % datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 
     #train_model(width, height, nblbl, dataset_path, weigths_filepath)
     #test_model(width, height, nblbl, test_images_path, weigths_filepath, "./predictions")
