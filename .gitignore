@@ -46,8 +46,7 @@ images/
 outputs/
 cnn/dataset/
 cnn/test_images/
-predictions/
-predictions*/
+cnn/evaluations/
 cnn/preview/
 cnn/weigths/before/
 cnn/weigths/graphs/

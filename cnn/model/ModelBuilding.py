@@ -6,6 +6,7 @@ import keras.models as models
 from keras.layers.core import Dropout, Activation, Reshape, Permute
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, UpSampling2D, ZeroPadding2D
 from keras.layers.normalization import BatchNormalization
+from keras import optimizers
 
 
 def create_encoding_layers():
@@ -74,7 +75,6 @@ def create_decoding_layers():
 def create_model(width, height, nblbl):
     data_shape = width * height
     autoencoder = models.Sequential()
-    # Add a noise layer to get a denoising autoencoder. This helps avoid overfitting
     autoencoder.add(ZeroPadding2D(input_shape=(3, height, width)))
     autoencoder.add(GaussianNoise(sigma=0.3))
     autoencoder.encoding_layers = create_encoding_layers()
@@ -87,5 +87,9 @@ def create_model(width, height, nblbl):
     autoencoder.add(Reshape((nblbl, data_shape), input_shape=(nblbl, height, width)))
     autoencoder.add(Permute((2, 1)))
     autoencoder.add(Activation('softmax'))
-    autoencoder.compile(loss="categorical_crossentropy", optimizer='adadelta', metrics=['accuracy'])
+    adad = optimizers.Adadelta()
+    sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+
+
+    autoencoder.compile(loss="categorical_crossentropy", optimizer=adad, metrics=['accuracy'])
     return autoencoder

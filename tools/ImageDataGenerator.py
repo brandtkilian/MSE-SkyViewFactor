@@ -5,10 +5,41 @@ import re
 from sklearn.utils import shuffle
 import random
 import numpy as np
+from enum import IntEnum
+
+
+class NormType(IntEnum):
+    Equalize = 0
+    StdMean = 2
+    Nothing = 1
+
+
+class PossibleTransform(IntEnum):
+    Multiply = 0
+    MultiplyPerChannels = 1
+    GaussianNoise = 2
+    Sharpen = 3
+    AddSub = 5
+    Invert = 6
+
+
+class TransformDescriptor():
+
+    def __init__(self, callback, proba):
+        self.proba = proba
+        self.callback = callback
+        print("Transform added %s with %1.2f probability of occurence" % (callback.__name__, proba))
+
+    def call(self, image):
+        lucky_or_not = random.uniform(0, 1) < self.proba
+        if lucky_or_not:
+            image = self.callback(image)
+        return image
+
 
 class ImageDataGenerator:
 
-    def __init__(self, src_directory, labels_directory, width, height, nblbl, lower_rotation_bound=0, higher_rotation_bound=180, normalize_img=True, magentize=True, rotate=False, batch_size=5, seed=1337, shuffled=True):
+    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True):
         self.src_directory = src_directory
         self.labels_directory = labels_directory
         self.width = width
@@ -16,8 +47,9 @@ class ImageDataGenerator:
         self.nblbl = nblbl
         self.lower_rotation_bound = lower_rotation_bound
         self.higher_rotation_bound = higher_rotation_bound
-        self.normalize_img = normalize_img
+        self.norm_type = norm_type
         self.magentize = magentize
+        self.allow_transform = allow_transforms
         self.rotate = rotate
         self.batch_size = batch_size
         self.seed = seed
@@ -25,45 +57,83 @@ class ImageDataGenerator:
         self.reg = r'\w+\.(jpg|jpeg|png)'
         self.img_files = sorted([f for f in os.listdir(self.src_directory) if re.match(self.reg, f.lower())])
         self.lbl_files = sorted([f for f in os.listdir(self.labels_directory) if re.match(self.reg, f.lower())])
+        self.shuffled = shuffled
+        self.angles = []
+        random.seed(self.seed)
 
         assert len(self.img_files) == len(self.lbl_files)
 
-        if shuffled:
+        self.init_new_generation(len(self.img_files))
+
+        self.transforms_family = []
+
+        if transforms is not None:
+            for t in transforms:
+                try:
+                    self.transforms_family.append(TransformDescriptor(available_transforms[t[0]], t[1]))
+                except Exception as e:
+                    print(e.message)
+
+
+    def init_new_generation(self, length):
+        self.angles = [a for a in self.angles_generator(length)]
+        if self.shuffled:
             self.img_files, self.lbl_files = shuffle(self.img_files, self.lbl_files)
 
-    def angles_generator(self):
-        random.seed(self.seed)
-
-        while True:
+    def angles_generator(self, length):
+        for _ in range(length):
             yield random.randint(self.lower_rotation_bound, self.higher_rotation_bound)
 
-    def image_generator(self):
+    def image_generator(self, roll_axis=True):
         color = (255, 0, 255)
         idx = self.mask > 0
-        i = 0
         length = len(self.img_files)
-        for a in self.angles_generator():
-            img = FileManager.LoadImage(self.img_files[i % length], self.src_directory)
-            if self.normalize_img:
-                img = self.normalize(img)
-            if self.magentize:
-                img = self.colorize_void(idx, color, img)
-            if self.rotate:
-                img = self.rotate_image(img, a)
-            yield np.rollaxis(img, 2)
-            i += 1
+        j = 0
+        while True:
+            i = 0
+            for a in self.angles:
+                img = FileManager.LoadImage(self.img_files[i % length], self.src_directory)
 
-    def label_generator(self):
-        i = 0
+                if self.norm_type == NormType.Equalize:
+                    img = self.normalize(img)
+                elif self.norm_type == NormType.StdMean:
+                    img = self.normalize_std(img)
+
+                if self.allow_transform:
+                    random.shuffle(self.transforms_family)
+                    for td in self.transforms_family:
+                        img = td.call(img)
+                if self.rotate:
+                    img = self.rotate_image(img, a)
+
+                if self.magentize:
+                    img = self.colorize_void(idx, color, img)
+                FileManager.SaveImage(img, "img%d.png" % j, "outputs/imgs_gen/")
+                j += 1
+
+                yield np.rollaxis(img, 2) if roll_axis else img
+                i += 1
+            self.init_new_generation(length)
+
+    def label_generator(self, binarized=True):
         length = len(self.lbl_files)
-        for a in self.angles_generator():
-            lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory)
-            if self.rotate:
-                lbl = self.rotate_image(lbl, a, is_label=True)
-            lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
-            lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
-            yield lbl
-            i += 1
+        while True:
+            i = 0
+            for a in self.angles:
+                if binarized:
+                    lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory)
+                else:
+                    lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory, cv2.IMREAD_GRAYSCALE)
+
+                if self.rotate:
+                    lbl = self.rotate_image(lbl, a, is_label=True)
+
+                FileManager.SaveImage(lbl, "lbl%d.png" % i, "outputs/lbls_gen/")
+                if binarized:
+                    lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
+                    lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
+                yield lbl
+                i += 1
 
     def image_batch_generator(self):
         batch = []
@@ -76,16 +146,27 @@ class ImageDataGenerator:
                 batch = []
                 i = 0
 
-    def label_batch_generator(self):
+    def label_batch_generator(self, binarized=True):
         batch = []
         i = 0
-        for lbl in self.label_generator():
+        for lbl in self.label_generator(binarized):
             batch.append(lbl)
             i += 1
             if i % self.batch_size == 0:
                 yield np.array(batch)
                 batch = []
                 i = 0
+
+    def normalize(self, rgb):
+        b, g, r = cv2.split(rgb)
+
+        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=((self.width / 30), int(self.width / 30)))
+        channels = (b, g, r)
+        equalized = []
+        for c in channels:
+            equalized.append(clahe.apply(c))
+
+        return cv2.merge(equalized)
 
     @staticmethod
     def get_void_mask(width, height):
@@ -105,17 +186,22 @@ class ImageDataGenerator:
         r[idx] = color[2]
         return cv2.merge((b, g, r))
 
-    @staticmethod
-    def normalize(rgb):
-        norm = np.zeros(rgb.shape, np.float32)
 
+    @staticmethod
+    def normalize_std(rgb):
         b, g, r = cv2.split(rgb)
 
-        norm[:, :, 0] = cv2.equalizeHist(b)
-        norm[:, :, 1] = cv2.equalizeHist(g)
-        norm[:, :, 2] = cv2.equalizeHist(r)
+        channels = (b, g, r)
+        normalized = []
 
-        return norm
+        for c in channels:
+            mean = cv2.mean(c)[0]
+            std = np.std(c)
+
+            normalized.append((c - mean) / std)
+
+        return cv2.merge(normalized)
+
 
     @staticmethod
     def binarylab(labels, width, height, nblbl):
@@ -127,7 +213,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def rotate_image(image, angle, is_label=False):
-        height, width, channels = image.shape
+        height, width = image.shape[:2]
         M = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1)
         interpolation = cv2.INTER_CUBIC
         if is_label:
@@ -135,3 +221,53 @@ class ImageDataGenerator:
         res = cv2.warpAffine(image, M, (width, height), None, interpolation, cv2.BORDER_CONSTANT, (0, 0, 0))
 
         return res
+
+    @staticmethod
+    def add_or_sub(image):
+        bound = 50
+        add_val = random.randint(0, bound) - int(bound/2)
+        image = image.astype(np.int32)
+        image += add_val
+
+        return image.clip(0, 255).astype(np.uint8)
+
+    @staticmethod
+    def gaussian_noise(image):
+        kernel_size = random.randint(1, 3) * 2 + 1
+        image = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
+        return image
+
+    @staticmethod
+    def multiply(image):
+        bound = 0.15
+        factor = random.uniform(0.0, 0.15) - bound/2
+        image = image * (1 - factor)
+        return image
+
+    @staticmethod
+    def multiply_per_channel(image):
+        b, g, r = cv2.split(image)
+        chans = (b, g, r)
+        multiplied = []
+        for c in chans:
+            multiplied.append(ImageDataGenerator.multiply(c))
+
+        return cv2.merge(multiplied)
+
+    @staticmethod
+    def sharpen(image):
+        factor = random.uniform(0.2, 0.7)
+        gaussian = cv2.GaussianBlur(image, (7, 7), 0)
+        image = cv2.addWeighted(image, 1 + factor, gaussian, -factor, 0)
+        return image
+
+    @staticmethod
+    def invert(image):
+        return 255 - image
+
+available_transforms = dict({PossibleTransform.Multiply: ImageDataGenerator.multiply,
+                    PossibleTransform.AddSub: ImageDataGenerator.add_or_sub,
+                    PossibleTransform.GaussianNoise: ImageDataGenerator.gaussian_noise,
+                    PossibleTransform.MultiplyPerChannels: ImageDataGenerator.multiply_per_channel,
+                    PossibleTransform.Sharpen: ImageDataGenerator.sharpen,
+                    PossibleTransform.Invert: ImageDataGenerator.invert,})
