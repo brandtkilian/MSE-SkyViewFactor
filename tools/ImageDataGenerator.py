@@ -160,7 +160,7 @@ class ImageDataGenerator:
     def normalize(self, rgb):
         b, g, r = cv2.split(rgb)
 
-        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=((self.width / 30), int(self.width / 30)))
+        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(int(self.width / 30), int(self.height / 30)))
         channels = (b, g, r)
         equalized = []
         for c in channels:

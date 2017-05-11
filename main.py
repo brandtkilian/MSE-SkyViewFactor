@@ -63,8 +63,8 @@ def prepareNewLabels(final_size, labels_path="images/newlabels", src_path="image
 
 if __name__ == '__main__':
     class_weights = {0: 1.9991311197110881, 1: 4.768665483757782, 2: 9.548975463506991, 3: 5.39499062619272}
-    class_weights = prepareDataset(resize_tests_images=False)
-    #cnn_main(width, heigth, class_weights)
+    #class_weights = prepareDataset(resize_tests_images=False)
+    cnn_main(width, heigth, class_weights)
 
     #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "outputs/")
     #prepareNewLabels((1440, 1440), "images/labels480x480", "/home/brandtk/Desktop/SVF/outputs_NE")
