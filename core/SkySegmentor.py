@@ -2,21 +2,20 @@ import cv2
 import numpy as np
 from core.Nagao import NagaoFilter
 from tools.FileManager import FileManager
+from tools.MaskCreator import MaskCreator
+from core.MarkersSelector import MarkersSelector
 import skimage.segmentation, skimage.color
 
 
-class SkySegmentor:
+class SkySegmentor():
 
-    def getSkyMaskByBlueColor(self, BGRImage, BlueT):
-        eq = self.equalizeHist(BGRImage)
+    def get_sky_mask_by_blue_color(self, BGRImage, BlueT):
+        eq = self.equalize_hist(BGRImage)
         FileManager.SaveImage(eq, "equalizedSrc.jpg")
         nagF = NagaoFilter(11)
         filtered = nagF.filter(eq)
 
-        cv2.imwrite("outputs/nagao.jpg", filtered)
-
         amplifiedBlue = self.amplify(filtered, 0, 2, BlueT * 3 / 4)
-        FileManager.SaveImage(amplifiedBlue, "ampB.jpg")
         b, g, r = cv2.split(amplifiedBlue)
 
         _, mask = cv2.threshold(b, BlueT, 255, cv2.THRESH_BINARY)
@@ -24,17 +23,13 @@ class SkySegmentor:
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (9, 9))
         cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, mask, iterations=1)
 
-        FileManager.SaveImage(mask, "mask.jpg")
-
         return mask
 
-    def kMeansSegmentation(self, img, K=4):
-        img = self.equalizeHist(img)
-        FileManager.SaveImage(img, "equalized.jpg")
+    def kMeans_segmentation(self, img, K=4):
+        img = self.equalize_hist(img)
         nf = NagaoFilter(51)
         img = nf.filter(img)
         img = self.amplifyHsv(img, 15, 30)
-        FileManager.SaveImage(img, "nagao.jpg")
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         Z = hsv.reshape((-1, 3))
         # convert to np.float32
@@ -60,7 +55,7 @@ class SkySegmentor:
         return skimage.color.label2rgb(labels)
 
 
-    def equalizeHist(self, img):
+    def equalize_hist(self, img):
         img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
 
         # equalize the histogram of the Y channel
@@ -71,8 +66,9 @@ class SkySegmentor:
 
         return img_output
 
-    def equalizeHistClahe(self, img):
-        clahe = cv2.createCLAHE()
+    def equalize_hist_Clahe(self, img):
+        width = img.shape[1]
+        clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(width, width))
         channels = cv2.split(img)
         claheified = []
         for c in channels:
@@ -103,3 +99,17 @@ class SkySegmentor:
         v[idx] = 255
         amplified = cv2.merge((h, s, v))
         return cv2.cvtColor(amplified, cv2.COLOR_HSV2BGR)
+
+    def segment_watershed(self, bgr, mask, skeletonize=False, eroding_size=31):
+        markersFG, markersBG = MarkersSelector.select_markers_otsu(bgr, mask, skeletonize=skeletonize, eroding_size=eroding_size)
+        #FileManager.SaveImage(markersFG, "markersFG_0001.jpg")
+        #FileManager.SaveImage(markersBG, "markersBG_0001.jpg")
+        markers = np.zeros(markersBG.shape, np.uint8)
+        markers[markersFG > 0] = 200
+        markers[markersBG > 0] = 127
+        markers = markers.astype(np.int32)
+        bgr = cv2.blur(bgr, (5, 5))
+
+        cv2.watershed(bgr, markers)
+        #FileManager.SaveImage(markers, "watershed.png");
+        return cv2.bitwise_and(markers.astype(np.uint8), mask)

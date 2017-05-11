@@ -16,21 +16,6 @@ from cnn.cnn_main import main as cnn_main
 width = 480
 heigth = 480
 
-def segmentationByColor():
-    ss = SkySegmentor()
-    imgSrc = FileManager.LoadImage("0001.jpg")
-    mask = ss.getSkyMaskByBlueColor(imgSrc, 210)
-
-    FileManager.SaveImage(mask, "firstSkySegmentationTry_mask.jpg")
-
-def segmentationKMeans():
-    ss = SkySegmentor()
-    imgSrc = FileManager.LoadImage("0001.jpg")
-
-    for k in range(3, 4):
-        res, center = ss.kMeansSegmentation(imgSrc, k)
-        FileManager.SaveImage(res, "kmeansSegBgrK%d.jpg"%k)
-
 def rectifyAllInputs(inputFolder, outputFolder):
     tableSrc = [24, 25, 25, 26, 26, 27, 27, 29, 29, 32, 32, 36, 36, 40, 41, 43, 44]
     imgViewAngle = 180
