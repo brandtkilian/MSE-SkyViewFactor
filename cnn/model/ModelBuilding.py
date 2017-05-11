@@ -76,7 +76,7 @@ def create_model(width, height, nblbl):
     data_shape = width * height
     autoencoder = models.Sequential()
     autoencoder.add(ZeroPadding2D(input_shape=(3, height, width)))
-    autoencoder.add(GaussianNoise(sigma=0.3))
+    #autoencoder.add(GaussianNoise(sigma=0.3))
     autoencoder.encoding_layers = create_encoding_layers()
     autoencoder.decoding_layers = create_decoding_layers()
     for l in autoencoder.encoding_layers:

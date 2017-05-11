@@ -5,7 +5,7 @@ from itertools import izip, product
 from tools.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
 
 os.environ['KERAS_BACKEND'] = 'tensorflow'
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5"
 os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/lib64"
 
 import tensorflow as tf
@@ -103,18 +103,18 @@ def train_model_generators(width, height, nblbl, classes_weights, dataset_path, 
     img_path_valid = os.path.join(dataset_path, "valid", "src")
     lbl_path_valid = os.path.join(dataset_path, "valid", "labels")
 
-    transforms = [(PossibleTransform.GaussianNoise, 0.1),
-                  (PossibleTransform.Sharpen, 0.1),
-                  (PossibleTransform.MultiplyPerChannels, 0.1),
-                  (PossibleTransform.AddSub, 0.1),
-                  (PossibleTransform.Multiply, 0.1), ]
+    transforms = [(PossibleTransform.GaussianNoise, 0.15),
+                  (PossibleTransform.Sharpen, 0.15),
+                  (PossibleTransform.MultiplyPerChannels, 0.15),
+                  (PossibleTransform.AddSub, 0.15),
+                  (PossibleTransform.Multiply, 0.15), ]
 
     idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
                                    lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, norm_type=NormType.Equalize,
-                                   batch_size=batch_size, seed=11)
+                                   batch_size=batch_size, seed=random.randint(1, 10e6))
 
     idg_valid = ImageDataGenerator(img_path_valid, lbl_path_valid, width, height, nblbl, magentize=True, norm_type=NormType.Equalize, rotate=False,
-                                   batch_size=batch_size, seed=12, shuffled=False)
+                                   batch_size=batch_size, seed=random.randint(1, 10e6), shuffled=False)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -129,7 +129,7 @@ def train_model_generators(width, height, nblbl, classes_weights, dataset_path, 
 
         if samples_valid < 0:
             samples_valid = len(idg_valid.lbl_files)
-        earlyStopping = EarlyStopping(monitor='loss', patience=0, verbose=0, mode='auto')
+        earlyStopping = EarlyStopping(monitor='loss', min_delta=1e-3, patience=10, verbose=1, mode='auto')
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
                                             verbose=1, validation_data=valid_generator,
                                             nb_val_samples=samples_valid,
@@ -137,7 +137,7 @@ def train_model_generators(width, height, nblbl, classes_weights, dataset_path, 
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "No gaussian noise, dropout [0.5, 0.25, 0.25], equalizeHist"
+        comments = "No gaussian noise, no dropout, equalizeHist, adadelta, early stopping"
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
@@ -288,11 +288,11 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
     img_path = os.path.join(dataset_path, "train", "src")
     lbl_path = os.path.join(dataset_path, "train", "labels")
 
-    transforms = [(PossibleTransform.GaussianNoise, 0.1),
-                  (PossibleTransform.Sharpen, 0.1),
-                  (PossibleTransform.MultiplyPerChannels, 0.5),
-                  (PossibleTransform.AddSub, 0.1),
-                  (PossibleTransform.Multiply, 0.1),]
+    transforms = [(PossibleTransform.GaussianNoise, 0.15),
+                  (PossibleTransform.Sharpen, 0.15),
+                  (PossibleTransform.MultiplyPerChannels, 0.15),
+                  (PossibleTransform.AddSub, 0.15),
+                  (PossibleTransform.Multiply, 0.15),]
 
     idg_test = ImageDataGenerator(img_path, lbl_path, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
                                   lower_rotation_bound=10, higher_rotation_bound=350, magentize=True,
@@ -316,8 +316,8 @@ def main(width, height, classes_weights):
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     #datestr = "2017-04-25_13:49:17"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
-    train_model(width, height, nblbl, dataset_path, weigths_filepath)
-    #train_model_generators(width, height, nblbl, classes_weights, dataset_path, weigths_filepath, nb_epoch, batch_size=2, samples_per_epoch=180)
+    #train_model(width, height, nblbl, dataset_path, weigths_filepath)
+    train_model_generators(width, height, nblbl, classes_weights, dataset_path, weigths_filepath, nb_epoch, batch_size=2, samples_per_epoch=200)
     evaluate_model(width, height, nblbl, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels", weigths_filepath, "./cnn/evaluations/predictions%s" % datestr)
 
     #test_data_augmentation(dataset_path, width, height, nblbl)

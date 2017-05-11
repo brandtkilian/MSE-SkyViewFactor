@@ -48,5 +48,4 @@ cnn/dataset/
 cnn/test_images/
 cnn/evaluations/
 cnn/preview/
-cnn/weigths/before/
-cnn/weigths/graphs/
+cnn/weights/
