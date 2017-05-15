@@ -8,6 +8,13 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import math
+from core.DatasetManager import DatasetManager
+from core.BalancedImageDataGenerator import BalancedImageDataGenerator
+from core.ImageDataGenerator import ImageDataGenerator
+from itertools import izip
+from core.ClassesEnum import Classes
+import operator
+import random
 
 def segmentation_by_color():
     ss = SkySegmentor()
@@ -50,14 +57,39 @@ def sky_view_factor_test():
     plt.savefig("outputs/factors.jpg")
 
 if __name__ == '__main__':
-    src_str = "0051.jpg"
-    #mask = MaskCreator.create_circle_mask(1440)
-    #src = FileManager.LoadImage(src_str, "images/src")
+    mask = MaskCreator.create_circle_mask(1440)
+    dmgr = DatasetManager(mask, 0, 0, 1440)
 
-    #markers_fg, markers_bg = MarkersSelector.select_markers(src, mask, skeletonize=True)
-    #FileManager.SaveImage(markers_bg, "background.png")
-    #FileManager.SaveImage(markers_fg, "foreground.png")
+    #dmgr.create_annotated_images()
+    bidg = BalancedImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0,1999999))
+    idg = ImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0,1999999))
 
-    sky_view_factor_test()
+    l = bidg.label_generator(binarized=False)
+    i = 0
+    averages = [0,0,0]
+    tot = cv2.countNonZero(mask)
+    for lbl_src in l:
+        if i > 10000:
+            break
+        i += 1
+        idx_sky = lbl_src == Classes.SKY
+        idx_veg = lbl_src == Classes.VEGETATION
+        idx_build = lbl_src == Classes.BUILT
+
+        nb = idx_sky.sum() / float(tot)
+        ng = idx_veg.sum() / float(tot)
+        nr = idx_build.sum() / float(tot)
+
+        percents = (nb, ng, nr)
+        averages = map(operator.add, averages, percents)
+
+        if i % 50 == 0:
+            print "Currently generated %d" % i
+    length = i
+    averages = map(lambda x: x / length, averages)
+    print bidg.occurences_dict
+    print len(bidg.occurences_dict)
+    print averages
+
 
 

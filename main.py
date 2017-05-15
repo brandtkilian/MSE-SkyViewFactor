@@ -1,17 +1,15 @@
-from core.OpticalRectifier import OpticalRectifier
-from core.SkySegmentor import SkySegmentor
-from core.DatasetManager import DatasetManager
-from tools.FileManager import FileManager
-from tools.MaskMerger import MasksMerger
-from tools.ClassificationSelector import beginSelection
-from tools.ImageDataGenerator import ImageDataGenerator
-
-import numpy as np
-import cv2
 import os
 import re
 from shutil import copy
+
+import cv2
+import numpy as np
+
 from cnn.cnn_main import main as cnn_main
+from core.DatasetManager import DatasetManager
+from core.OpticalRectifier import OpticalRectifier
+from tools.FileManager import FileManager
+from tools.MaskMerger import MasksMerger
 
 width = 480
 heigth = 480

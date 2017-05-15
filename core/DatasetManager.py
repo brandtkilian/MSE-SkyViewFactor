@@ -1,19 +1,21 @@
-import cv2
+import operator
 import os
 import re
-from tools.FileManager import FileManager
 import shutil
-import numpy as np
-from core.ClassesEnum import Classes
-from sklearn.utils import shuffle
-import operator
-from tools.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
 from itertools import izip
+
+import cv2
+import numpy as np
+from sklearn.utils import shuffle
+
+from core.ClassesEnum import Classes
+from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
+from tools.FileManager import FileManager
 
 
 class DatasetManager:
 
-    def __init__(self, mask, valid_percentage, test_percentage, target_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annoted", dataset_output_path="outputs/dataset"):
+    def __init__(self, mask, valid_percentage, test_percentage, target_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annotated", dataset_output_path="outputs/dataset"):
         self.mask = mask
         self.labels_path = labels_path
         self.src_path = src_path
@@ -206,7 +208,7 @@ class DatasetManager:
             resizedSrcImg = cv2.resize(img, self.targetSize, interpolation=cv2.INTER_CUBIC)
             FileManager.SaveImage(resizedSrcImg, img_names[i], output_dir)
 
-    def split_dataset_by_mostly_represented_class(self, input_src, input_annoted, mask, output_sky_most="outputs/sorted_dataset/sky/", output_veg_most="outputs/sorted_dataset/veg/",
+    def split_dataset_by_mostly_represented_class(self, input_src, input_annotated, mask, output_sky_most="outputs/sorted_dataset/sky/", output_veg_most="outputs/sorted_dataset/veg/",
                                                   output_build_most="outputs/sorted_dataset/build/", output_mixed="outputs/sorted_dataset/mixed/"):
         if not os.path.exists(output_sky_most):
             os.makedirs(output_sky_most)
@@ -218,12 +220,12 @@ class DatasetManager:
             os.makedirs(output_mixed)
 
         img_names = sorted([f for f in os.listdir(input_src) if re.match(self.reg, f.lower())])
-        lbl_names = sorted([f for f in os.listdir(input_annoted) if re.match(self.reg, f.lower())])
+        lbl_names = sorted([f for f in os.listdir(input_annotated) if re.match(self.reg, f.lower())])
 
         tot = cv2.countNonZero(mask)
         averages = [0., 0., 0.]
         for img_name, lbl_name in zip(img_names, lbl_names):
-            lbl_src = FileManager.LoadImage(lbl_name, input_annoted, cv2.IMREAD_GRAYSCALE)
+            lbl_src = FileManager.LoadImage(lbl_name, input_annotated, cv2.IMREAD_GRAYSCALE)
             img_src = FileManager.LoadImage(img_name, input_src)
 
             idx_sky = lbl_src == Classes.SKY
@@ -260,7 +262,7 @@ class DatasetManager:
         averages = map(lambda x: x / length, averages)
         return averages, length
 
-    def create_synthetic_balanced_dataset_with_data_augmentation(self, input_src, input_annoted, mask, input_width, input_height,
+    def create_synthetic_balanced_dataset_with_data_augmentation(self, input_src, input_annotated, mask, input_width, input_height,
                                                                  nblbl, output_sky_most="outputs/sorted_dataset/sky/",
                                                                  output_veg_most="outputs/sorted_dataset/veg/",
                                                                  output_build_most="outputs/sorted_dataset/build/",
@@ -272,7 +274,7 @@ class DatasetManager:
                 diffs.append(abs(percents[i - 1] - percents[i]))
             return diffs
 
-        averages, length = self.split_dataset_by_mostly_represented_class(input_src, input_annoted, mask,
+        averages, length = self.split_dataset_by_mostly_represented_class(input_src, input_annotated, mask,
                                                                           output_sky_most, output_veg_most,
                                                                           output_build_most, output_mixed)
 

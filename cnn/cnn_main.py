@@ -1,8 +1,10 @@
 from __future__ import absolute_import
 from __future__ import print_function
+
 import os
 from itertools import izip, product
-from tools.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
+
+from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
 
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5"

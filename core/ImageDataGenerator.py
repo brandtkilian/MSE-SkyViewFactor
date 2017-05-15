@@ -63,8 +63,6 @@ class ImageDataGenerator:
 
         assert len(self.img_files) == len(self.lbl_files)
 
-        self.init_new_generation(len(self.img_files))
-
         self.transforms_family = []
 
         if transforms is not None:
@@ -73,7 +71,6 @@ class ImageDataGenerator:
                     self.transforms_family.append(TransformDescriptor(available_transforms[t[0]], t[1]))
                 except Exception as e:
                     print(e.message)
-
 
     def init_new_generation(self, length):
         self.angles = [a for a in self.angles_generator(length)]
@@ -88,6 +85,8 @@ class ImageDataGenerator:
         color = (255, 0, 255)
         idx = self.mask > 0
         length = len(self.img_files)
+        if len(self.angles) == 0:
+            self.init_new_generation(length)
         j = 0
         while True:
             i = 0
@@ -117,6 +116,8 @@ class ImageDataGenerator:
 
     def label_generator(self, binarized=True):
         length = len(self.lbl_files)
+        if len(self.angles) == 0:
+            self.init_new_generation(length)
         while True:
             i = 0
             for a in self.angles:
