@@ -56,17 +56,18 @@ def sky_view_factor_test():
                ncol=2, shadow=True, title="Legend", fancybox=True)
     plt.savefig("outputs/factors.jpg")
 
-if __name__ == '__main__':
+
+def test_balanced_generator():
+    global length
     mask = MaskCreator.create_circle_mask(1440)
     dmgr = DatasetManager(mask, 0, 0, 1440)
-
-    #dmgr.create_annotated_images()
-    bidg = BalancedImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0,1999999))
-    idg = ImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0,1999999))
-
+    # dmgr.create_annotated_images()
+    bidg = BalancedImageDataGenerator("images/src", "outputs/annoted", 480, 480, 4, seed=random.randint(0, 1999999),
+                                      rotate=True)
+    idg = ImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0, 1999999))
     l = bidg.label_generator(binarized=False)
     i = 0
-    averages = [0,0,0]
+    averages = [0, 0, 0]
     tot = cv2.countNonZero(mask)
     for lbl_src in l:
         if i > 10000:
@@ -90,6 +91,10 @@ if __name__ == '__main__':
     print bidg.occurences_dict
     print len(bidg.occurences_dict)
     print averages
+
+
+if __name__ == '__main__':
+    test_balanced_generator()
 
 
 

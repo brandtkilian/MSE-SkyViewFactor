@@ -154,6 +154,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
+                print a
                 if binarized:
                     lbl = FileManager.LoadImage(self.current_iteration_lbl[i % length], self.labels_directory)
                 else:
@@ -169,7 +170,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 yield lbl
                 i += 1
                 self.occurences_dict[self.current_iteration_lbl[i % length]] = self.occurences_dict.get(self.current_iteration_lbl[i % length], 0) + 1
-            self.init_new_generation(length)
 
     def image_generator(self, roll_axis=True):
         color = (255, 0, 255)
@@ -179,6 +179,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
+                print a
                 img = FileManager.LoadImage(self.current_iteration_img[i % length], self.src_directory)
                 img = self.resize_if_needed(img)
                 if self.norm_type == NormType.Equalize:
@@ -199,6 +200,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
                 yield np.rollaxis(img, 2) if roll_axis else img
                 i += 1
+            self.init_new_generation(length)
 
     def build_generator(self, list):
         def gen():
