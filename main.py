@@ -13,6 +13,7 @@ from tools.MaskMerger import MasksMerger
 
 width = 480
 heigth = 480
+nblbl = 4
 
 def rectifyAllInputs(inputFolder, outputFolder):
     tableSrc = [24, 25, 25, 26, 26, 27, 27, 29, 29, 32, 32, 36, 36, 40, 41, 43, 44]
@@ -36,8 +37,7 @@ def prepareDataset(dataset_output_path="./cnn/dataset", valid_percent=15, test_p
     cv2.circle(mask, (1440 / 2, 1440 / 2), 1440 / 2, (255, 255, 255), -1)
     dmgr = DatasetManager(mask, valid_percent, test_percent, (width, heigth), dataset_output_path=dataset_output_path)
     #dmgr.split_dataset_by_mostly_represented_class("images/src", "images/annoted", mask)
-    dmgr.create_synthetic_balanced_dataset_with_data_augmentation("images/src", "images/annoted", mask, 1440, 1440, 4)
-    return []
+    #dmgr.create_synthetic_balanced_dataset_with_data_augmentation("images/src", "images/annoted", mask, 1440, 1440, 4)
     #if dmgr.checkForLabelsSanity() == 0:
     dmgr.create_annotated_images()
     dmgr.create_final_dataset()
@@ -62,7 +62,7 @@ def prepareNewLabels(final_size, labels_path="images/newlabels", src_path="image
 if __name__ == '__main__':
     class_weights = {0: 1.9991311197110881, 1: 4.768665483757782, 2: 9.548975463506991, 3: 5.39499062619272}
     #class_weights = prepareDataset(resize_tests_images=False)
-    cnn_main(width, heigth, class_weights)
+    cnn_main(width, heigth, nblbl)
 
     #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "outputs/")
     #prepareNewLabels((1440, 1440), "images/labels480x480", "/home/brandtk/Desktop/SVF/outputs_NE")

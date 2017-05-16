@@ -5,6 +5,7 @@ import os
 from itertools import izip, product
 
 from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
+from core.BalancedImageDataGenerator import BalancedImageDataGenerator
 
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5"
@@ -51,7 +52,7 @@ def prep_data(base_path, from_path, width, height, nblbl, magentize=True):
 
 
 def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
-    idg = ImageDataGenerator(image_path, image_path, width, height, 4, magentize=magentize, shuffled=False)
+    idg = ImageDataGenerator(image_path, image_path, width, height, 4, magentize=magentize, allow_transforms=False, rotate=False, shuffled=False)
 
     length = len(idg.img_files) if limit < 0 else limit
 
@@ -95,8 +96,8 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
                           len(valid_data), graph_path, data_augmentation=False, comments=comments)
 
 
-def train_model_generators(width, height, nblbl, classes_weights, dataset_path, weights_filepath, nb_epoch=100,
-                           batch_size=2, samples_per_epoch=180, samples_valid=-1):
+def train_model_generators(width, height, nblbl, dataset_path, weights_filepath, nb_epoch=100,
+                           batch_size=8, samples_per_epoch=200, samples_valid=-1, balanced=True):
     class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
 
     img_path_train = os.path.join(dataset_path, "train", "src")
@@ -111,9 +112,16 @@ def train_model_generators(width, height, nblbl, classes_weights, dataset_path, 
                   (PossibleTransform.AddSub, 0.15),
                   (PossibleTransform.Multiply, 0.15), ]
 
-    idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
-                                   lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, norm_type=NormType.Equalize,
-                                   batch_size=batch_size, seed=random.randint(1, 10e6))
+    if balanced:
+        idg_train = BalancedImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True,
+                                               rotate=True, transforms=transforms,
+                                               lower_rotation_bound=0, higher_rotation_bound=360, magentize=True,
+                                               norm_type=NormType.Equalize,
+                                               batch_size=batch_size, seed=random.randint(1, 10e6))
+    else:
+        idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
+                                       lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, norm_type=NormType.Equalize,
+                                       batch_size=batch_size, seed=random.randint(1, 10e6))
 
     idg_valid = ImageDataGenerator(img_path_valid, lbl_path_valid, width, height, nblbl, magentize=True, norm_type=NormType.Equalize, rotate=False,
                                    batch_size=batch_size, seed=random.randint(1, 10e6), shuffled=False)
@@ -139,7 +147,7 @@ def train_model_generators(width, height, nblbl, classes_weights, dataset_path, 
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "No gaussian noise, no dropout, equalizeHist, adadelta, early stopping"
+        comments = "equalizeCLAHE, adadelta, balanced %r" % balanced
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
@@ -163,7 +171,8 @@ def test_model(width, height, nblbl, test_images_path, weights_filepath, predict
         output = autoencoder.predict_proba(np.array([test_data]))
         reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
         pred = visualize(reshaped_output, label_colours, nblbl)
-        FileManager.SaveImage(pred, os.path.join(prediction_output_path, img_name.split(".")[0]+".png"))
+        filename = img_name.split(".")[0]+".png"
+        FileManager.SaveImage(pred, filename, prediction_output_path)
 
 
 def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, weights_filepath, prediction_output_path):
@@ -307,19 +316,16 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
             break
         i += 1
 
-def main(width, height, classes_weights):
-    nblbl = 4
+
+def main(width, height, nblbl):
     nb_epoch = 100
     dataset_path = "./cnn/dataset/"
     test_images_path = "./cnn/test_images/"
-    #weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #train_model(width, height, nblbl, dataset_path, weigths_filepath)
 
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #datestr = "2017-04-25_13:49:17"
+    #datestr = "2017-05-11_11:10:54"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
     #train_model(width, height, nblbl, dataset_path, weigths_filepath)
-    train_model_generators(width, height, nblbl, classes_weights, dataset_path, weigths_filepath, nb_epoch, batch_size=2, samples_per_epoch=200)
+    train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, nb_epoch, balanced=True)
     evaluate_model(width, height, nblbl, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels", weigths_filepath, "./cnn/evaluations/predictions%s" % datestr)
-
-    #test_data_augmentation(dataset_path, width, height, nblbl)
+    test_model(width, height, nblbl, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

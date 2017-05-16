@@ -92,6 +92,7 @@ class ImageDataGenerator:
             i = 0
             for a in self.angles:
                 img = FileManager.LoadImage(self.img_files[i % length], self.src_directory)
+                img = self.resize_if_needed(img)
 
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
@@ -125,6 +126,8 @@ class ImageDataGenerator:
                     lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory)
                 else:
                     lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory, cv2.IMREAD_GRAYSCALE)
+
+                lbl = self.resize_if_needed(lbl, is_label=True)
 
                 if self.rotate:
                     lbl = self.rotate_image(lbl, a, is_label=True)
@@ -168,6 +171,15 @@ class ImageDataGenerator:
             equalized.append(clahe.apply(c))
 
         return cv2.merge(equalized)
+
+    def resize_if_needed(self, img, is_label=False):
+        size = img.shape
+        if size[1] != self.width or size[0] != self.height:
+            mode = cv2.INTER_NEAREST if is_label else cv2.INTER_CUBIC
+            resized = cv2.resize(img, (self.width, self.height), interpolation=mode)
+            return resized
+
+        return img
 
     @staticmethod
     def get_void_mask(width, height):

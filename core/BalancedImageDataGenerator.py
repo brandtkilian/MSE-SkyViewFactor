@@ -98,6 +98,18 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         for i in range(len(self.map_list_img)):
             self.averages_classes[i] /= len(self.map_list_img[i])
 
+        self.sort_lists()
+
+    def sort_lists(self):
+        self.sky_img = sorted(self.sky_img)
+        self.veg_img = sorted(self.veg_img)
+        self.built_img = sorted(self.built_img)
+        self.sky_lbl = sorted(self.sky_lbl)
+        self.veg_lbl = sorted(self.veg_lbl)
+        self.built_lbl = sorted(self.built_lbl)
+        self.mixed_img = sorted(self.mixed_img)
+        self.mixed_lbl = sorted(self.mixed_lbl)
+
     def init_new_generation(self, length):
         self.angles = [a for a in self.angles_generator(length)]
         if self.shuffled:
@@ -147,6 +159,8 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 else:
                     lbl = FileManager.LoadImage(self.current_iteration_lbl[i % length], self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
+                lbl = self.resize_if_needed(lbl, is_label=True)
+
                 if self.rotate:
                     lbl = self.rotate_image(lbl, a, is_label=True)
                 if binarized:
@@ -166,7 +180,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
             i = 0
             for a in self.angles:
                 img = FileManager.LoadImage(self.current_iteration_img[i % length], self.src_directory)
-
+                img = self.resize_if_needed(img)
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
                 elif self.norm_type == NormType.StdMean:

@@ -49,3 +49,4 @@ cnn/test_images/
 cnn/evaluations/
 cnn/preview/
 cnn/weights/
+outputs.txt
