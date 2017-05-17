@@ -2,15 +2,17 @@ import cv2
 import math
 import numpy as np
 from tools.FileManager import FileManager
+from sklearn.metrics import mean_squared_error
 
 
 class SkyViewFactorCalculator:
 
     @staticmethod
-    def compute_factor(binary_mask, number_of_steps=200, center=(720, 720), radius=720):
+    def compute_factor(binary_mask, number_of_steps=120, center=(720, 720), radius=720):
         assert len(center) == 2, "SVFCalculator: Center must be a tuple or a list of length 2"
         center = tuple([int(abs(c)) for c in center])
         radius = abs(radius)
+        assert center[0] + radius <= binary_mask.shape[1] and center[0] - radius >= 0 and center[1] + radius <= binary_mask.shape[0] and center[1] - radius >= 0, "Radius and center values incoherent regarding the input mask size..."
         number_of_steps = abs(number_of_steps) if number_of_steps != 0 else 10
         assert number_of_steps < radius, "SVFCalculator: The number of steps cannot be greater than the radius in pixels, pixels cannot be divided in smaller pieces sorry..."
 
@@ -56,7 +58,7 @@ class SkyViewFactorCalculator:
         return factor
 
     @staticmethod
-    def compute_factor_bgr_labels(bgr, number_of_steps=100, center=(720, 720), radius=720):
+    def compute_factor_bgr_labels(bgr, number_of_steps=120, center=(720, 720), radius=720):
         b, g, r = cv2.split(bgr)
 
         chans = [b, g, r]
@@ -66,3 +68,26 @@ class SkyViewFactorCalculator:
                                                                   center=center, radius=radius))
         return factors
 
+    @staticmethod
+    def compute_factor_annotated_label(annotated, class_label=1, number_of_steps=120, center=(720, 720), radius=720):
+        class_label = int(class_label)
+        idx = annotated == class_label
+        mask = np.zeros(annotated.shape, np.uint8)
+        mask[idx] = 255
+
+        return SkyViewFactorCalculator.compute_factor(mask, number_of_steps=number_of_steps,
+                                                      center=center, radius=radius)
+
+    @staticmethod
+    def compute_factor_annotated_labels(annotated, class_labels=[1, 2, 3], number_of_steps=120, center=(720, 720), radius=720):
+        assert isinstance(class_labels, (list, tuple))
+        factors = []
+        for c in class_labels:
+            factors.append(SkyViewFactorCalculator.compute_factor_annotated_label(annotated, c,
+                                                                                  number_of_steps=number_of_steps,
+                                                                                  center=center, radius=radius))
+        return factors
+
+    @staticmethod
+    def compute_mean_square_error(y_true, y_pred):
+        return mean_squared_error(y_true, y_pred)
