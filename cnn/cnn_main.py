@@ -97,7 +97,7 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
 
 
 def train_model_generators(width, height, nblbl, dataset_path, weights_filepath, nb_epoch=100,
-                           batch_size=8, samples_per_epoch=200, samples_valid=-1, balanced=True):
+                           batch_size=6, samples_per_epoch=180, samples_valid=-1, balanced=True, early_stopping=False):
     class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
 
     img_path_train = os.path.join(dataset_path, "train", "src")
@@ -106,11 +106,11 @@ def train_model_generators(width, height, nblbl, dataset_path, weights_filepath,
     img_path_valid = os.path.join(dataset_path, "valid", "src")
     lbl_path_valid = os.path.join(dataset_path, "valid", "labels")
 
-    transforms = [(PossibleTransform.GaussianNoise, 0.15),
-                  (PossibleTransform.Sharpen, 0.15),
-                  (PossibleTransform.MultiplyPerChannels, 0.15),
-                  (PossibleTransform.AddSub, 0.15),
-                  (PossibleTransform.Multiply, 0.15), ]
+    transforms = [(PossibleTransform.GaussianNoise, 0.1),
+                  (PossibleTransform.Sharpen, 0.1),
+                  (PossibleTransform.MultiplyPerChannels, 0.1),
+                  (PossibleTransform.AddSub, 0.1),
+                  (PossibleTransform.Multiply, 0.1), ]
 
     if balanced:
         idg_train = BalancedImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True,
@@ -140,14 +140,17 @@ def train_model_generators(width, height, nblbl, dataset_path, weights_filepath,
         if samples_valid < 0:
             samples_valid = len(idg_valid.lbl_files)
         earlyStopping = EarlyStopping(monitor='loss', min_delta=1e-3, patience=10, verbose=1, mode='auto')
+        callback = []
+        if early_stopping:
+            callback = callbakc.append(earlyStopping)
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
                                             verbose=1, validation_data=valid_generator,
                                             nb_val_samples=samples_valid,
-                                            class_weight=class_weighting, callbacks=[earlyStopping])
+                                            class_weight=class_weighting, callbacks=callback)
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "equalizeCLAHE, adadelta, balanced %r" % balanced
+        comments = "equalizeCLAHE, adadelta, balanced %r, early_stopping %r" % (balanced, early_stopping)
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
