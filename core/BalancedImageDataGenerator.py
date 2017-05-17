@@ -11,9 +11,9 @@ import numpy as np
 
 class BalancedImageDataGenerator(ImageDataGenerator):
 
-    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True):
+    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False):
         ImageDataGenerator.__init__(self, src_directory, labels_directory, width, height=height, nblbl=nblbl, transforms=transforms, allow_transforms=allow_transforms,
-                       rotate=rotate, lower_rotation_bound=lower_rotation_bound, higher_rotation_bound=higher_rotation_bound, norm_type=norm_type, magentize=magentize, batch_size=batch_size, seed=seed, shuffled=shuffled)
+                       rotate=rotate, lower_rotation_bound=lower_rotation_bound, higher_rotation_bound=higher_rotation_bound, norm_type=norm_type, magentize=magentize, batch_size=batch_size, seed=seed, shuffled=shuffled, yield_names=yield_names)
 
         self.veg_img = []
         self.built_img = []
@@ -154,11 +154,12 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print a
+                print "lbl  %d" %a
+                name = self.current_iteration_lbl[i % length]
                 if binarized:
-                    lbl = FileManager.LoadImage(self.current_iteration_lbl[i % length], self.labels_directory)
+                    lbl = FileManager.LoadImage(name, self.labels_directory)
                 else:
-                    lbl = FileManager.LoadImage(self.current_iteration_lbl[i % length], self.labels_directory, cv2.IMREAD_GRAYSCALE)
+                    lbl = FileManager.LoadImage(name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
                 lbl = self.resize_if_needed(lbl, is_label=True)
 
@@ -167,7 +168,10 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
-                yield lbl
+                if self.yield_names:
+                    yield lbl, name
+                else:
+                    yield lbl
                 i += 1
                 self.occurences_dict[self.current_iteration_lbl[i % length]] = self.occurences_dict.get(self.current_iteration_lbl[i % length], 0) + 1
 
@@ -179,8 +183,9 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print a
-                img = FileManager.LoadImage(self.current_iteration_img[i % length], self.src_directory)
+                print "img %d" % a
+                name = self.current_iteration_img[i % length]
+                img = FileManager.LoadImage(name, self.src_directory)
                 img = self.resize_if_needed(img)
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
@@ -198,9 +203,14 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                     img = self.colorize_void(idx, color, img)
                 j += 1
 
-                yield np.rollaxis(img, 2) if roll_axis else img
+                img = np.rollaxis(img, 2) if roll_axis else img
+                if self.yield_names:
+                    yield img, name
+                else:
+                    yield img
                 i += 1
             self.init_new_generation(length)
+
 
     def build_generator(self, list):
         def gen():

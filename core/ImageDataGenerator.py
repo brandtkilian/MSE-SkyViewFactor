@@ -39,7 +39,7 @@ class TransformDescriptor():
 
 class ImageDataGenerator:
 
-    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True):
+    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False):
         self.src_directory = src_directory
         self.labels_directory = labels_directory
         self.width = width
@@ -58,6 +58,7 @@ class ImageDataGenerator:
         self.img_files = sorted([f for f in os.listdir(self.src_directory) if re.match(self.reg, f.lower())])
         self.lbl_files = sorted([f for f in os.listdir(self.labels_directory) if re.match(self.reg, f.lower())])
         self.shuffled = shuffled
+        self.yield_names = yield_names
         self.angles = []
         random.seed(self.seed)
 
@@ -91,7 +92,8 @@ class ImageDataGenerator:
         while True:
             i = 0
             for a in self.angles:
-                img = FileManager.LoadImage(self.img_files[i % length], self.src_directory)
+                name = self.img_files[i % length]
+                img = FileManager.LoadImage(name, self.src_directory)
                 img = self.resize_if_needed(img)
 
                 if self.norm_type == NormType.Equalize:
@@ -111,7 +113,11 @@ class ImageDataGenerator:
                 FileManager.SaveImage(img, "img%d.png" % j, "outputs/imgs_gen/")
                 j += 1
 
-                yield np.rollaxis(img, 2) if roll_axis else img
+                img = np.rollaxis(img, 2) if roll_axis else img
+                if self.yield_names:
+                    yield img, name
+                else:
+                    yield img
                 i += 1
             self.init_new_generation(length)
 
@@ -122,10 +128,11 @@ class ImageDataGenerator:
         while True:
             i = 0
             for a in self.angles:
+                name = self.lbl_files[i % length]
                 if binarized:
-                    lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory)
+                    lbl = FileManager.LoadImage(name, self.labels_directory)
                 else:
-                    lbl = FileManager.LoadImage(self.lbl_files[i % length], self.labels_directory, cv2.IMREAD_GRAYSCALE)
+                    lbl = FileManager.LoadImage(name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
                 lbl = self.resize_if_needed(lbl, is_label=True)
 
@@ -136,7 +143,11 @@ class ImageDataGenerator:
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
-                yield lbl
+
+                if self.yield_names:
+                    yield lbl, name
+                else:
+                    yield lbl
                 i += 1
 
     def image_batch_generator(self):
@@ -253,8 +264,11 @@ class ImageDataGenerator:
     @staticmethod
     def multiply(image):
         bound = 0.15
-        factor = random.uniform(0.0, 0.15) - bound/2
-        image = image * (1 - factor)
+        image = image.astype(np.float64)
+        factor = random.uniform(0.0, bound) - bound/2
+        image *= (1 - factor)
+        image = np.clip(image, 0, 255)
+        image = image.astype(np.uint8)
         return image
 
     @staticmethod
