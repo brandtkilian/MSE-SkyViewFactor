@@ -15,6 +15,7 @@ from itertools import izip
 from core.ClassesEnum import Classes
 import operator
 import random
+from tools.BSPMarkerCreator import BSPMarkerCreator
 
 
 def segmentation_by_color():
@@ -220,7 +221,8 @@ if __name__ == '__main__':
     #test_balanced_generator()
     #sky_view_factor_test()
     #sky_view_factor_angle_test()
-    test_svf_algorithm()
+    #test_svf_algorithm()
+    BSPMarkerCreator.create_markers(foreground_channel=2)
 
 
 
