@@ -64,7 +64,7 @@ def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
             break
 
 
-def train_model(width, height, nblbl, dataset_path, weights_filepath):
+def train_model(width, height, nblbl, dataset_path, weights_filepath, batch_size=10, nb_epoch=100):
     data_shape = width * height
     np.random.seed(1337)  # for reproducibility
 
@@ -79,16 +79,13 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
     with tf.Session(config=config) as s:
         autoencoder = create_model(width, height, nblbl)
 
-        nb_epoch = 100
-        batch_size = 2
-
         s.run(tf.global_variables_initializer())
         history = autoencoder.fit(train_data, train_label, batch_size=batch_size, nb_epoch=nb_epoch, verbose=1,
                                   class_weight=class_weighting, shuffle=True, validation_data=(valid_data, valid_label))
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "Gaussian noise 3x3, no dropout, adadelta"
+        comments = "magentize, no augmentation, equalizeClahe"
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
@@ -98,7 +95,6 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath):
 
 def train_model_generators(width, height, nblbl, dataset_path, weights_filepath, nb_epoch=100,
                            batch_size=6, samples_per_epoch=180, samples_valid=-1, balanced=True, early_stopping=False):
-    class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
 
     img_path_train = os.path.join(dataset_path, "train", "src")
     lbl_path_train = os.path.join(dataset_path, "train", "labels")
@@ -113,12 +109,14 @@ def train_model_generators(width, height, nblbl, dataset_path, weights_filepath,
                   (PossibleTransform.Multiply, 0.1), ]
 
     if balanced:
+        class_weighting = [1, 1, 1, 1]
         idg_train = BalancedImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True,
                                                rotate=True, transforms=transforms,
                                                lower_rotation_bound=0, higher_rotation_bound=360, magentize=True,
                                                norm_type=NormType.Equalize,
                                                batch_size=batch_size, seed=random.randint(1, 10e6))
     else:
+        class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
         idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
                                        lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, norm_type=NormType.Equalize,
                                        batch_size=batch_size, seed=random.randint(1, 10e6))
@@ -142,7 +140,7 @@ def train_model_generators(width, height, nblbl, dataset_path, weights_filepath,
         earlyStopping = EarlyStopping(monitor='loss', min_delta=1e-3, patience=10, verbose=1, mode='auto')
         callback = []
         if early_stopping:
-            callback = callbakc.append(earlyStopping)
+            callback = callback.append(earlyStopping)
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
                                             verbose=1, validation_data=valid_generator,
                                             nb_val_samples=samples_valid,
@@ -179,7 +177,7 @@ def test_model(width, height, nblbl, test_images_path, weights_filepath, predict
 
 
 def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, weights_filepath, prediction_output_path):
-    idg = ImageDataGenerator(test_images_path, test_labels_path, width, height, nblbl, norm_type=NormType.Equalize, magentize=True, rotate=False, shuffled=False)
+    idg = ImageDataGenerator(test_images_path, test_labels_path, width, height, nblbl, norm_type=NormType.Equalize, magentize=True, rotate=False, shuffled=False, yield_names=True)
     test_generator = izip(idg.image_generator(), idg.label_generator(binarized=False))
 
     autoencoder = create_model(width, height, nblbl)
@@ -200,13 +198,16 @@ def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, wei
     i = 0
     true_labs = []
     pred_labs = []
-    for src, lbl in test_generator:
+    for src_info, lbl_info in test_generator:
+        src = src_info[0]
+        lbl = lbl_info[0]
+        name = src_info[1]
         output = autoencoder.predict_proba(np.array([src]))
         max_output = np.argmax(output[0], axis=1)
         true_labs.append(lbl.reshape(width * height))
         pred_labs.append(max_output)
         pred = visualize(max_output.reshape(width, height), label_colours, nblbl)
-        FileManager.SaveImage(pred, "pred%d.png" % i, prediction_output_path)
+        FileManager.SaveImage(pred, name.split(".")[0]+".png", prediction_output_path)
         i += 1
         if i == length:
             break
@@ -215,7 +216,7 @@ def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, wei
     pred_labs = np.array(pred_labs).ravel()
     cm = confusion_matrix(true_labs, pred_labs)
     target_names = ["Void", "Sky", "Veg", "Built"]
-    plot_confusion_matrix(cm, target_names, False, output_filename=os.path.join(prediction_output_path, "confusion_matrix.jpg"))
+    plot_confusion_matrix(cm, target_names, True, output_filename=os.path.join(prediction_output_path, "confusion_matrix.jpg"))
     with open(os.path.join(prediction_output_path, "report.txt"), "w") as f:
         f.write(classification_report(true_labs, pred_labs, target_names=target_names))
 
@@ -244,7 +245,11 @@ def plot_confusion_matrix(cm, classes,
 
     thresh = cm.max() / 2.
     for i, j in product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, cm[i, j],
+        if cm[j, i] < 1e-3:
+            format_nb = "%.3E"
+        else:
+            format_nb = "%.3f"
+        plt.text(j, i, format_nb % cm[i, j],
                  horizontalalignment="center",
                  color="white" if cm[i, j] > thresh else "black")
 
@@ -322,13 +327,14 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
 
 def main(width, height, nblbl):
     nb_epoch = 100
+    batch_size = 4
     dataset_path = "./cnn/dataset/"
     test_images_path = "./cnn/test_images/"
 
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #datestr = "2017-05-11_11:10:54"
+    #datestr = "2017-05-17_23:52:50"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
-    #train_model(width, height, nblbl, dataset_path, weigths_filepath)
-    train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, nb_epoch, balanced=True)
+    #train_model(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch)
+    train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch, balanced=False)
     evaluate_model(width, height, nblbl, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels", weigths_filepath, "./cnn/evaluations/predictions%s" % datestr)
     test_model(width, height, nblbl, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

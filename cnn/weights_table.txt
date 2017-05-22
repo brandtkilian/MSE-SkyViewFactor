@@ -1,0 +1,9 @@
+[path]	[input_size]	[nb_epoch]	[batch_size]	[train_data_sz]	[val_data_sz]	[magentize]	[normalize]	[data_augmentation]	[sample_per_epoch]	[nb_val_sample]	[graph_path]	[comments]
+
+./cnn/weights/svf_2017-05-17_12:57:48.hdf5	480x480	100	6	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-17_12:57:48	equalizeCLAHE, adadelta, balanced True, early_stopping False
+./cnn/weights/svf_2017-05-17_23:52:50.hdf5	480x480	100	2	84	18	True	True	False	0	0	./cnn/weights/graphs/svf_2017-05-17_23:52:50	magentize, no augmentation, equalizeClahe
+./cnn/weights/svf_2017-05-18_08:54:15.hdf5	360x360	100	10	84	18	True	True	False	0	0	./cnn/weights/graphs/svf_2017-05-18_08:54:15	magentize, no augmentation, equalizeClahe
+./cnn/weights/svf_2017-05-18_10:37:12.hdf5	360x360	100	10	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-18_10:37:12	equalizeCLAHE, adadelta, balanced True, early_stopping False
+./cnn/weights/svf_2017-05-18_15:33:43.hdf5	360x360	100	10	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-18_15:33:43	equalizeCLAHE, adadelta, balanced False, early_stopping False
+./cnn/weights/svf_2017-05-18_18:34:27.hdf5	600x600	100	4	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-18_18:34:27	equalizeCLAHE, adadelta, balanced True, early_stopping False
+./cnn/weights/svf_2017-05-19_09:49:30.hdf5	600x600	100	4	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-19_09:49:30	equalizeCLAHE, adadelta, balanced False, early_stopping False

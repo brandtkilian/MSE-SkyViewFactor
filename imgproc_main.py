@@ -53,7 +53,7 @@ def sky_view_factor_test():
 
 
 def svf_graphs():
-    path = "images/labels"
+    path = "/home/brandtk/predictions2017-05-17_12:57:48"
     labels = sorted([f for f in os.listdir(path)])[:]
     sky = []
     veg = []
@@ -186,9 +186,9 @@ def svf_graph_and_mse():
         i += 1
 
 if __name__ == '__main__':
-    #svf_graph_and_mse()
-    test_balanced_generator()
-    sky_view_factor_test()
+    svf_graphs()
+    #test_balanced_generator()
+    #sky_view_factor_test()
 
 
 

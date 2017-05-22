@@ -154,7 +154,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print "lbl  %d" %a
                 name = self.current_iteration_lbl[i % length]
                 if binarized:
                     lbl = FileManager.LoadImage(name, self.labels_directory)
@@ -183,7 +182,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print "img %d" % a
                 name = self.current_iteration_img[i % length]
                 img = FileManager.LoadImage(name, self.src_directory)
                 img = self.resize_if_needed(img)

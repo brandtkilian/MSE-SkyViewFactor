@@ -11,8 +11,8 @@ from core.OpticalRectifier import OpticalRectifier
 from tools.FileManager import FileManager
 from tools.MaskMerger import MasksMerger
 
-width = 480
-heigth = 480
+width = 600
+heigth = 600
 nblbl = 4
 
 def rectifyAllInputs(inputFolder, outputFolder):
