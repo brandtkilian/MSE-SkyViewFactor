@@ -12,7 +12,8 @@ class SkyViewFactorCalculator:
         assert len(center) == 2, "SVFCalculator: Center must be a tuple or a list of length 2"
         center = tuple([int(abs(c)) for c in center])
         radius = abs(radius)
-        assert center[0] + radius <= binary_mask.shape[1] and center[0] - radius >= 0 and center[1] + radius <= binary_mask.shape[0] and center[1] - radius >= 0, "Radius and center values incoherent regarding the input mask size..."
+        assert center[0] + radius <= binary_mask.shape[1] and center[0] - radius >= 0 and center[1] + radius <= binary_mask.shape[0] and center[1] - radius >= 0, \
+            "Radius (%d) and center (%d, %d) values incoherent regarding the input mask size (%dx%d)..." % (radius, center[0], center[1], binary_mask.shape[1], binary_mask.shape[0])
         number_of_steps = abs(number_of_steps) if number_of_steps != 0 else 10
         assert number_of_steps <= radius, "SVFCalculator: The number of steps cannot be greater than the radius in pixels, pixels cannot be divided in smaller pieces sorry..."
 
