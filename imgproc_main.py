@@ -15,6 +15,8 @@ from itertools import izip
 from core.ClassesEnum import Classes
 import operator
 import random
+from tools.BSPMarkerCreator import BSPMarkerCreator
+
 
 def segmentation_by_color():
     ss = SkySegmentor()
@@ -22,6 +24,7 @@ def segmentation_by_color():
     mask = ss.get_sky_mask_by_blue_color(imgSrc, 210)
 
     FileManager.SaveImage(mask, "firstSkySegmentationTry_mask.jpg")
+
 
 def segmentation_KMeans():
     ss = SkySegmentor()
@@ -50,6 +53,34 @@ def sky_view_factor_test():
     white *= 255
     factor = SkyViewFactorCalculator.compute_factor(white)
     print "svf for white image : %.3f" % factor
+
+
+def sky_view_factor_angle_test():
+    img_names = ["0001.jpg", "0031.jpg", "3481.jpg"]
+    for img_name in img_names:
+        src = FileManager.LoadImage(img_name, "outputs/watershed", cv2.IMREAD_GRAYSCALE)
+        _, thresh = cv2.threshold(src, 128, 255, cv2.THRESH_BINARY)
+
+        factor = SkyViewFactorCalculator.compute_sky_angle_estimation(thresh, (720, 720), 0, 720)
+        cv2.circle(src, (720, 720), int(factor * 720 / 90.0), (255, 0, 0), 3)
+        FileManager.SaveImage(src, "circle" + img_name)
+        print "Angle from vertical including 50%% of svf for image %s = %.3f" % (img_name, factor)
+
+
+def test_svf_algorithm():
+    quarter = np.zeros((1440, 1440), np.uint8)
+    cv2.rectangle(quarter, (0, 0), (720, 720), (255, 255, 255), -1)
+    factor = SkyViewFactorCalculator.compute_factor(quarter, number_of_steps=120)
+    diff = abs(factor - 0.25)
+    assert diff < 1e-3, "Quarter SVF should be equal to 0.25, algorithm returned %.5f, (diff: %.5f)" % (factor, diff)
+
+    half = np.zeros((1440, 1440), np.uint8)
+    cv2.rectangle(half, (0, 0), (1440, 720), (255, 255, 255), -1)
+    factor = SkyViewFactorCalculator.compute_factor(half)
+    diff = abs(factor - 0.50)
+    assert diff < 1e-3, "Half SVF should be equal to 0.50, algorithm returned %.5f, (diff: %.5f)" % (factor, diff)
+
+    print "tests succeed !"
 
 
 def svf_graphs():
@@ -110,7 +141,7 @@ def test_balanced_generator():
 
         mask_sky = np.zeros(lbl_src.shape, np.uint8)
         mask_sky[idx_sky] = 255
-        cv2.imshow(img_name, img)
+        cv2.imshow("x", cv2.bitwise_and(img, img, mask=mask_sky))
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
@@ -189,6 +220,9 @@ if __name__ == '__main__':
     svf_graphs()
     #test_balanced_generator()
     #sky_view_factor_test()
+    #sky_view_factor_angle_test()
+    #test_svf_algorithm()
+    #BSPMarkerCreator.create_markers(foreground_channel=2)
 
 
 
