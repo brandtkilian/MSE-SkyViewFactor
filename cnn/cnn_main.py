@@ -94,7 +94,7 @@ def train_model(width, height, nblbl, dataset_path, weights_filepath, batch_size
 
 
 def train_model_generators(width, height, nblbl, dataset_path, weights_filepath, nb_epoch=100,
-                           batch_size=6, samples_per_epoch=180, samples_valid=-1, balanced=True, early_stopping=False):
+                           batch_size=6, samples_per_epoch=240, samples_valid=-1, balanced=True, early_stopping=False):
 
     img_path_train = os.path.join(dataset_path, "train", "src")
     lbl_path_train = os.path.join(dataset_path, "train", "labels")
@@ -327,12 +327,12 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
 
 def main(width, height, nblbl):
     nb_epoch = 100
-    batch_size = 4
+    batch_size = 6
     dataset_path = "./cnn/dataset/"
     test_images_path = "./cnn/test_images/"
 
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #datestr = "2017-05-17_23:52:50"
+    #datestr = "2017-04-28_17:49:07"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
     #train_model(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch)
     train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch, balanced=False)

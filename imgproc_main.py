@@ -89,16 +89,18 @@ def svf_graphs():
     sky = []
     veg = []
     built = []
-    for f in labels:
+    for f in labels[:]:
         img = FileManager.LoadImage(f, path)
-        factors = SkyViewFactorCalculator.compute_factor_bgr_labels(img)
+        factors = SkyViewFactorCalculator.compute_factor_bgr_labels(img, center=(240, 240), radius=240)
         sky.append(factors[0])
         veg.append(factors[1])
         built.append(factors[2])
-    plt.subplot(111)
+    plt.figure(figsize=(20, 6))
+    plt.title("View Factors")
     plt.plot(sky, 'b', label="Sky")
-    plt.plot(veg, 'g', label="Veg")
+    plt.plot(veg, 'g', label="Vegetation")
     plt.plot(built, 'r', label="Buildings")
+    plt.ylim([0,1])
     plt.legend(loc="upper left", bbox_to_anchor=[0, 1],
                ncol=2, shadow=True, title="Legend", fancybox=True)
     plt.savefig("outputs/factors.jpg")
@@ -162,8 +164,8 @@ def test_balanced_generator():
 
 
 def svf_graph_and_mse():
-    path_gt = "/home/brandtk/MSE-SkyViewFactor/images/svf/gt"
-    path_pred = "/home/brandtk/MSE-SkyViewFactor/images/svf/preds"
+    path_gt = "cnn/dataset/tests/labels"
+    path_pred = "cnn/evaluations/predictions2017-05-17_12:57:48/predictions"
 
     gt = sorted([f for f in os.listdir(path_gt)])[:]
     preds = sorted([f for f in os.listdir(path_pred)])[:]
@@ -217,6 +219,7 @@ def svf_graph_and_mse():
         i += 1
 
 if __name__ == '__main__':
+    #svf_graph_and_mse()
     svf_graphs()
     #test_balanced_generator()
     #sky_view_factor_test()

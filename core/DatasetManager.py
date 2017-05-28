@@ -39,6 +39,8 @@ class DatasetManager:
         files = [f for f in os.listdir(self.labels_path) if re.match(reg, f.lower())]
         for f in files:
             imgSrc = FileManager.LoadImage(f, self.labels_path)
+            if imgSrc.shape[0] != self.mask.shape[0] or imgSrc.shape[1] != self.mask.shape[1]:
+                imgSrc = cv2.resize(imgSrc, (self.mask.shape[0], self.mask.shape[1]), interpolation=cv2.INTER_NEAREST)
             imgSrc = cv2.bitwise_and(imgSrc, imgSrc, None, self.mask)
             FileManager.SaveImage(imgSrc, f, self.labels_path)
 

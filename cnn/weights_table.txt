@@ -7,3 +7,4 @@
 ./cnn/weights/svf_2017-05-18_15:33:43.hdf5	360x360	100	10	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-18_15:33:43	equalizeCLAHE, adadelta, balanced False, early_stopping False
 ./cnn/weights/svf_2017-05-18_18:34:27.hdf5	600x600	100	4	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-18_18:34:27	equalizeCLAHE, adadelta, balanced True, early_stopping False
 ./cnn/weights/svf_2017-05-19_09:49:30.hdf5	600x600	100	4	84	18	True	True	True	180	18	./cnn/weights/graphs/svf_2017-05-19_09:49:30	equalizeCLAHE, adadelta, balanced False, early_stopping False
+./cnn/weights/svf_2017-05-28_14:26:01.hdf5	480x480	100	6	121	15	True	True	True	240	15	./cnn/weights/graphs/svf_2017-05-28_14:26:01	equalizeCLAHE, adadelta, balanced False, early_stopping False
