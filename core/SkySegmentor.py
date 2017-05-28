@@ -9,13 +9,14 @@ import skimage.segmentation, skimage.color
 
 class SkySegmentor():
 
-    def get_sky_mask_by_blue_color(self, BGRImage, BlueT):
-        eq = self.equalize_hist(BGRImage)
+    @staticmethod
+    def get_sky_mask_by_blue_color(BGRImage, BlueT):
+        eq = SkySegmentor.equalize_hist(BGRImage)
         FileManager.SaveImage(eq, "equalizedSrc.jpg")
         nagF = NagaoFilter(11)
         filtered = nagF.filter(eq)
 
-        amplifiedBlue = self.amplify(filtered, 0, 2, BlueT * 3 / 4)
+        amplifiedBlue = SkySegmentor.amplify(filtered, 0, 2, BlueT * 3 / 4)
         b, g, r = cv2.split(amplifiedBlue)
 
         _, mask = cv2.threshold(b, BlueT, 255, cv2.THRESH_BINARY)
@@ -25,8 +26,9 @@ class SkySegmentor():
 
         return mask
 
+    @staticmethod
     def kMeans_segmentation(self, img, K=4):
-        img = self.equalize_hist(img)
+        img = SkySegmentor.equalize_hist(img)
         nf = NagaoFilter(51)
         img = nf.filter(img)
         img = self.amplifyHsv(img, 15, 30)
@@ -47,15 +49,16 @@ class SkySegmentor():
         output = cv2.medianBlur(gray, 21)
         return output, center
 
-    def felzenszwalb(self, img):
+    @staticmethod
+    def felzenszwalb(img):
         #img = self.equalizeHist(img)
         #nf = NagaoFilter(11)
         #img = nf.filter(img)
         labels = skimage.segmentation.felzenszwalb(img, scale=1, sigma=6, min_size=300)
         return skimage.color.label2rgb(labels)
 
-
-    def equalize_hist(self, img):
+    @staticmethod
+    def equalize_hist(img):
         img_yuv = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
 
         # equalize the histogram of the Y channel
@@ -66,8 +69,9 @@ class SkySegmentor():
 
         return img_output
 
-    def equalize_hist_Clahe(self, img):
-        width = img.shape[1]
+    @staticmethod
+    def equalize_hist_Clahe(img):
+        width = img.shape[1] / 30
         clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(width, width))
         channels = cv2.split(img)
         claheified = []
@@ -76,7 +80,8 @@ class SkySegmentor():
 
         return cv2.merge(claheified)
 
-    def amplify(self, img, channel, factor, thresh):
+    @staticmethod
+    def amplify(img, channel, factor, thresh):
         factor = factor if factor >= 1 else 1
         channels = cv2.split(img)
         c = channels[channel]
@@ -89,7 +94,8 @@ class SkySegmentor():
         img = cv2.merge(channels)
         return img
 
-    def amplifyHsv(self, img, huemin, huemax):
+    @staticmethod
+    def amplifyHsv(img, huemin, huemax):
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv)
         idx = h >= huemin
@@ -100,16 +106,37 @@ class SkySegmentor():
         amplified = cv2.merge((h, s, v))
         return cv2.cvtColor(amplified, cv2.COLOR_HSV2BGR)
 
-    def segment_watershed(self, bgr, mask, skeletonize=False, eroding_size=31):
-        markersFG, markersBG = MarkersSelector.select_markers_otsu(bgr, mask, skeletonize=skeletonize, eroding_size=eroding_size)
-        #FileManager.SaveImage(markersFG, "markersFG_0001.jpg")
-        #FileManager.SaveImage(markersBG, "markersBG_0001.jpg")
+    @staticmethod
+    def segment_watershed(bgr, mask, skeletonize=False, eroding_size=31, equalize=True, bluring_size=7, use_nagao=False):
+        if equalize:
+            bgr = SkySegmentor.equalize_hist(bgr)
+
+        markersFG, markersBG = MarkersSelector.select_markers_otsu(bgr, mask, skeletonize=skeletonize,
+                                                                   eroding_size=eroding_size, bluring_size=bluring_size,
+                                                                   use_nagao=use_nagao)
+
+        #markersFG, markersBG = MarkersSelector.select_markers(bgr, mask)
+
         markers = np.zeros(markersBG.shape, np.uint8)
         markers[markersFG > 0] = 200
         markers[markersBG > 0] = 127
         markers = markers.astype(np.int32)
-        bgr = cv2.blur(bgr, (5, 5))
+        nf = NagaoFilter(21)
+        bgr = nf.filter(bgr)
 
         cv2.watershed(bgr, markers)
-        #FileManager.SaveImage(markers, "watershed.png");
-        return cv2.bitwise_and(markers.astype(np.uint8), mask)
+
+        _, thresh = cv2.threshold(markers.astype(np.uint8), 150, 255, cv2.THRESH_BINARY)
+        return cv2.bitwise_and(thresh, mask)
+
+    @staticmethod
+    def compute_variance(bgr, window_size=11):
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        gray = gray.astype(np.float64)
+        average = cv2.blur(gray, (window_size, window_size))
+
+        diff = gray - average
+        squared = diff * diff
+
+        sum_averaged = cv2.blur(squared, (window_size, window_size))
+        return sum_averaged

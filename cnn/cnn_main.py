@@ -21,6 +21,7 @@ import datetime
 import ntpath
 from sklearn.metrics import confusion_matrix, classification_report
 from keras.callbacks import EarlyStopping
+from core.SkyViewFactorCalculator import SkyViewFactorCalculator
 
 import random
 
@@ -51,7 +52,7 @@ def prep_data(base_path, from_path, width, height, nblbl, magentize=True):
     return np.array(train_data), np.array(train_label), idg.img_files, idg.lbl_files
 
 
-def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
+def get_images_for_cnn(image_path, width, height, magentize=True, limit=-1):
     idg = ImageDataGenerator(image_path, image_path, width, height, 4, magentize=magentize, allow_transforms=False, rotate=False, shuffled=False)
 
     length = len(idg.img_files) if limit < 0 else limit
@@ -167,12 +168,46 @@ def test_model(width, height, nblbl, test_images_path, weights_filepath, predict
 
     label_colours = np.array([Void, Sky, Building, Vegetation])
 
-    for (img_name, test_data) in get_images_for_tests(test_images_path, width, height, limit=-1):
+    for (img_name, test_data) in get_images_for_cnn(test_images_path, width, height, limit=-1):
         output = autoencoder.predict_proba(np.array([test_data]))
         reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
         pred = visualize(reshaped_output, label_colours, nblbl)
         filename = img_name.split(".")[0]+".png"
         FileManager.SaveImage(pred, filename, prediction_output_path)
+
+
+def classify_images(images_path, weights_filepath, csv_output, save_outputs=False, classification_output_path="outputs/predictions", width=480, height=480, nblbl=4, magentize=True):
+    autoencoder = create_model(width, height, nblbl)
+    autoencoder.load_weights(weights_filepath)
+    Sky = [255, 0, 0]
+    Building = [0, 255, 0]
+    Vegetation = [0, 0, 255]
+    Void = [0, 0, 0]
+    label_colours = np.array([Void, Sky, Building, Vegetation])
+
+    values = []
+
+    with open(csv_output, "w") as f:
+        f.write(",".join(["src_name", "SVF", "VVF", "BVF", "sky grav_center\n"]))
+        for (img_name, test_data) in get_images_for_cnn(images_path, width, height, magentize=magentize, limit=-1):
+            output = autoencoder.predict_proba(np.array([test_data]))
+            reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
+            pred = visualize(reshaped_output, label_colours, nblbl)
+
+            factors = SkyViewFactorCalculator.compute_factor_bgr_labels(pred)
+            b, g, r = cv2.split(pred)
+            grav_center = SkyViewFactorCalculator.compute_sky_angle_estimation(b, (width/2, height/2), 0, width / 2)
+            values.append(img_name)
+            values.append("%.3f" % factors[0])
+            values.append("%.3f" % factors[1])
+            values.append("%.3f" % factors[2])
+            values.append("%.3f" % grav_center)
+            f.write(','.join(values) + "\n")
+            values = []
+
+            if save_outputs:
+                filename = img_name.split(".")[0]+".png"
+                FileManager.SaveImage(pred, filename, classification_output_path)
 
 
 def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, weights_filepath, prediction_output_path):
