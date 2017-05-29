@@ -95,10 +95,11 @@ class SkyViewFactorCalculator:
 
     @staticmethod
     def compute_sky_angle_estimation(binary_mask, center, radius_low, radius_top, epsilon=1e-2, sky_view_factor=-1,
-                                     number_of_steps=120, center_factor=(720, 720), radius_factor=720):
+                                     number_of_steps=120, center_factor=(720, 720), radius_factor=720, n_iter=0):
         range_radius = abs(radius_top - radius_low)
         first_radius = int(math.ceil(radius_low + 0.25 * range_radius))
         second_radius = int(math.ceil(radius_low + 0.75 * range_radius))
+
 
         if sky_view_factor < 0:
             sky_view_factor = SkyViewFactorCalculator.compute_factor(binary_mask, number_of_steps=number_of_steps,
@@ -112,7 +113,6 @@ class SkyViewFactorCalculator:
         first_overlap = cv2.bitwise_and(binary_mask, first_mask)
         second_overlap = cv2.bitwise_and(binary_mask, second_mask)
 
-
         first_svf = SkyViewFactorCalculator.compute_factor(first_overlap, number_of_steps=number_of_steps,
                                                            center=center_factor, radius=radius_factor)
         second_svf = SkyViewFactorCalculator.compute_factor(second_overlap, number_of_steps=number_of_steps,
@@ -123,7 +123,7 @@ class SkyViewFactorCalculator:
         second_diff = abs(expected - second_svf)
 
         radius_angle_factor = 90.0 / radius_factor
-        if first_diff < epsilon:
+        if first_diff < epsilon or n_iter > 20:
             return first_radius * radius_angle_factor
         elif second_diff < epsilon:
             return second_radius * radius_angle_factor
@@ -139,6 +139,7 @@ class SkyViewFactorCalculator:
                                                                     sky_view_factor=sky_view_factor,
                                                                     number_of_steps=number_of_steps,
                                                                     center_factor=center_factor,
-                                                                    radius_factor=radius_factor)
+                                                                    radius_factor=radius_factor,
+                                                                    n_iter=n_iter+1)
 
 

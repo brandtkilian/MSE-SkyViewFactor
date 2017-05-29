@@ -6,14 +6,10 @@ from tools.FileManager import FileManager
 
 class MasksMerger():
 
-    def __init__(self, buildPath, skyPath, mask):
-        self.path1 = buildPath
-        self.path2 = skyPath
-        self.mask = mask
-
-    def MergeAll(self, outputDir="outputs/"):
-        files1 = [f for f in glob.iglob("%s/*.png" % self.path1)]
-        files2 = [f for f in glob.iglob("%s/*.png" % self.path2)]
+    @staticmethod
+    def merge_from_sky_and_build(buildPath, skyPath, mask, output_dir="outputs/"):
+        files1 = [f for f in glob.iglob("%s/*.png" % buildPath)]
+        files2 = [f for f in glob.iglob("%s/*.png" % skyPath)]
 
         print len(files1), len(files2)
         assert len(files1) == len(files2)
@@ -55,5 +51,28 @@ class MasksMerger():
                                        cv2.bitwise_and(r, g)), cv2.bitwise_and(b, r))
             idx = conflicts > 0
             merged[idx] = (255, 255, 255)
-            merged = cv2.bitwise_and(merged, merged, None, self.mask)
-            FileManager.SaveImage(merged, files1[i])
+            merged = cv2.bitwise_and(merged, merged, None, mask)
+            FileManager.SaveImage(merged, files1[i], output_dir)
+
+    @staticmethod
+    def merge_masks_from_all(sky_path, veg_path, built_path, mask, output_dir="outputs/"):
+        sky_imgs = sorted([f for f in glob.iglob("%s/*.png" % sky_path)])
+        veg_imgs = sorted([f for f in glob.iglob("%s/*.png" % veg_path)])
+        built_imgs = sorted([f for f in glob.iglob("%s/*.png" % built_path)])
+
+        assert len(sky_imgs) == len(veg_imgs) and len(veg_imgs) == len(built_imgs), "Numbers of images in the three given pathes aren't equals"
+
+        for sky, veg, built in zip(sky_imgs, veg_imgs, built_imgs):
+            b = FileManager.LoadImage(sky, sky_path, cv2.IMREAD_GRAYSCALE)
+            g = FileManager.LoadImage(veg, veg_path, cv2.IMREAD_GRAYSCALE)
+            #r = cv2.bitwise_not(cv2.bitwise_or(b, g))
+            r = FileManager.LoadImage(built, built_path, cv2.IMREAD_GRAYSCALE)
+            merged = cv2.merge((b, g, r))
+            merged = cv2.bitwise_and(merged, merged, None, mask)
+            a = cv2.bitwise_or(b, g)
+            a = cv2.bitwise_or(a, r)
+            a = cv2.bitwise_or(a, cv2.bitwise_not(mask))
+            a = cv2.bitwise_not(a)
+            n = cv2.countNonZero(a)
+            if n < 100:
+                FileManager.SaveImage(merged, sky, output_dir)

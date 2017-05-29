@@ -11,24 +11,26 @@ from sklearn.utils import shuffle
 from core.ClassesEnum import Classes
 from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
 from tools.FileManager import FileManager
+from tools.MaskCreator import MaskCreator
 
 
 class DatasetManager:
 
-    def __init__(self, mask, valid_percentage, test_percentage, target_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annotated", dataset_output_path="outputs/dataset"):
-        self.mask = mask
+    def __init__(self, valid_percentage, test_percentage, input_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annotated", dataset_output_path="outputs/dataset"):
         self.labels_path = labels_path
         self.src_path = src_path
         self.annot_output_path = annot_output_path
         self.dataset_output_path = dataset_output_path
         self.test_percentage = float(test_percentage)
         self.valid_percentage = float(valid_percentage)
-        self.targetSize = (360, 360)
-        if isinstance(target_size, tuple):
-            if len(target_size) == 2:
-                self.targetSize = target_size
-            elif len(target_size) > 2:
-                self.targetSize = (self.targetSize[0], self.targetSize[1])
+        self.targetSize = (1440, 1440)
+        if isinstance(input_size, tuple):
+            if len(input_size) == 2:
+                self.targetSize = input_size
+            elif len(input_size) > 2:
+                self.input_size = (self.input_size[0], self.input_size[1])
+
+        self.mask = MaskCreator.create_circle_mask(input_size[0])
 
         self.reg = r'\w+\.(jpg|jpeg|png)'
 
@@ -194,10 +196,10 @@ class DatasetManager:
             srcImg = FileManager.LoadImage(srcs[i], self.src_path)
             lblImg = FileManager.LoadImage(labels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
-            resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
-            resizedLblImg = cv2.resize(lblImg, self.targetSize, interpolation=cv2.INTER_NEAREST)
-            FileManager.SaveImage(resizedSrcImg, srcs[i], path_src)
-            FileManager.SaveImage(resizedLblImg, labels[i], path_labels)
+            #resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
+            #resizedLblImg = cv2.resize(lblImg, self.targetSize, interpolation=cv2.INTER_NEAREST)
+            FileManager.SaveImage(srcImg, srcs[i], path_src)
+            FileManager.SaveImage(lblImg, labels[i], path_labels)
 
     def resize_images(self, input_dir, output_dir):
         if not os.path.exists(output_dir):

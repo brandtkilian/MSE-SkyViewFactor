@@ -21,6 +21,7 @@ import datetime
 import ntpath
 from sklearn.metrics import confusion_matrix, classification_report
 from keras.callbacks import EarlyStopping
+from core.SkyViewFactorCalculator import SkyViewFactorCalculator
 
 import random
 
@@ -51,8 +52,9 @@ def prep_data(base_path, from_path, width, height, nblbl, magentize=True):
     return np.array(train_data), np.array(train_label), idg.img_files, idg.lbl_files
 
 
-def get_images_for_tests(image_path, width, height, magentize=True, limit=10):
-    idg = ImageDataGenerator(image_path, image_path, width, height, 4, magentize=magentize, allow_transforms=False, rotate=False, shuffled=False)
+def get_images_for_cnn(image_path, width, height, magentize=True, limit=-1):
+    idg = ImageDataGenerator(image_path, image_path, width, height, 4, norm_type=NormType.Equalize, magentize=magentize,
+                             allow_transforms=False, rotate=False, shuffled=False)
 
     length = len(idg.img_files) if limit < 0 else limit
 
@@ -168,12 +170,60 @@ def test_model(width, height, nblbl, test_images_path, weights_filepath, predict
 
     label_colours = np.array([Void, Sky, Building, Vegetation])
 
-    for (img_name, test_data) in get_images_for_tests(test_images_path, width, height, limit=-1):
+    for (img_name, test_data) in get_images_for_cnn(test_images_path, width, height, limit=-1):
         output = autoencoder.predict_proba(np.array([test_data]))
         reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
         pred = visualize(reshaped_output, label_colours, nblbl)
         filename = img_name.split(".")[0]+".png"
         FileManager.SaveImage(pred, filename, prediction_output_path)
+
+
+def classify_images(images_path, weights_filepath, csv_output, save_outputs=False, classification_output_path="outputs/predictions", width=480, height=480, nblbl=4, magentize=True, gravity_angle=False):
+    autoencoder = create_model(width, height, nblbl)
+    autoencoder.load_weights(weights_filepath)
+    Sky = [255, 0, 0]
+    Building = [0, 255, 0]
+    Vegetation = [0, 0, 255]
+    Void = [0, 0, 0]
+    label_colours = np.array([Void, Sky, Building, Vegetation])
+
+    values = []
+    directory = os.path.dirname(csv_output)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    radius = width / 2
+    center = (radius, radius)
+    headers = ["src_name", "SVF", "VVF", "BVF", "sky grav_center\n"] if gravity_angle else ["src_name", "SVF", "VVF", "BVF\n"]
+
+    with open(csv_output, "w+") as f:
+        f.write(",".join(headers))
+
+        for (img_name, test_data) in get_images_for_cnn(images_path, width, height, magentize=magentize, limit=-1):
+            output = autoencoder.predict_proba(np.array([test_data]))
+            reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
+            pred = visualize(reshaped_output, label_colours, nblbl)
+
+            factors = SkyViewFactorCalculator.compute_factor_bgr_labels(pred, center=center, radius=radius)
+
+            values.append(img_name)
+            values.append("%.5f" % factors[0])
+            values.append("%.5f" % factors[1])
+            values.append("%.5f" % factors[2])
+
+            if gravity_angle:
+                b, g, r = cv2.split(pred)
+                grav_center = SkyViewFactorCalculator.compute_sky_angle_estimation(b, center=center, radius_low=0, radius_top=radius, center_factor=center, radius_factor=radius, sky_view_factor=factors[0])
+                rad_pixels = grav_center * (radius / 90)
+                cv2.circle(pred, center, int(rad_pixels), (255, 255, 255), 1)
+                values.append("%.5f" % grav_center)
+
+            f.write(','.join(values) + "\n")
+            values = []
+
+            if save_outputs:
+                filename = img_name.split(".")[0]+".png"
+                FileManager.SaveImage(pred, filename, classification_output_path)
 
 
 def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, weights_filepath, prediction_output_path):
@@ -334,7 +384,7 @@ def main(width, height, nblbl):
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     #datestr = "2017-04-28_17:49:07"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
-    #train_model(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch)
-    train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch, balanced=False)
+    train_model(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch)
+    #train_model_generators(width, height, nblbl, dataset_path, weigths_filepath, batch_size=batch_size, nb_epoch=nb_epoch, balanced=True)
     evaluate_model(width, height, nblbl, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels", weigths_filepath, "./cnn/evaluations/predictions%s" % datestr)
     test_model(width, height, nblbl, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

@@ -22,6 +22,10 @@ def beginSelection(src_folder, pred_folder, out_folder, skip=0):
         pred = FileManager.LoadImage(preds[i], pred_folder)
         src = FileManager.LoadImage(srcs[i], src_folder)
 
+        pred = cv2.resize(pred, (480, 480), interpolation=cv2.INTER_NEAREST)
+        src = cv2.resize(src, (480, 480), interpolation=cv2.INTER_CUBICyy)
+
+
         sky_mask, veg_mask, build_mask = cv2.split(pred)
 
         sky = cv2.bitwise_and(src, src, None, sky_mask)

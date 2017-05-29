@@ -29,7 +29,6 @@ class MarkersSelector():
     @staticmethod
     def select_markers(bgr, mask, skeletonize=False, eroding_size=31):
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        FileManager.SaveImage(hsv, "hsv.tif")
         h, s, v = cv2.split(hsv)
         sky_idx1 = np.logical_and(s < 13, v > 216)
         sky_idx2 = np.logical_and(np.logical_and(np.logical_and(s < 25, v > 204), h > 90), h < 150)
@@ -44,7 +43,6 @@ class MarkersSelector():
         for idx in idxes:
             zeros = np.zeros(shape, np.uint8)
             zeros[idx] = bgr[idx]
-            FileManager.SaveImage(zeros, "idx%d.png" % i)
             i += 1
             potential_sky[idx] = 255
 
@@ -57,19 +55,24 @@ class MarkersSelector():
             return cv2.erode(potential_sky, ker), cv2.erode(potential_sky_inv, ker)
 
     @staticmethod
-    def select_markers_otsu(bgr, mask, skeletonize=False, eroding_size=31):
+    def select_markers_otsu(bgr, mask, skeletonize=False, eroding_size=31, bluring_size=7, use_nagao=False):
+        b, g, r = cv2.split(bgr)
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-        #b, g, r = cv2.split(bgr)
-        #gray = b
-        #gray = cv2.equalizeHist(gray)
 
-        gray = cv2.medianBlur(gray, 7)
+        bluring_size = bluring_size if bluring_size % 2 != 0 else bluring_size + 1
+
+        if use_nagao:
+            nf = NagaoFilter(bluring_size)
+            gray = nf.filter(gray)
+        else:
+            gray = cv2.blur(gray, (bluring_size, bluring_size))
+
+
         #FileManager.SaveImage(gray, "noiseless.png")
         idx = mask > 0
         tmpGray = gray[idx]
 
         threshold, thresh = cv2.threshold(tmpGray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        _, dummy = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         ret, thresh = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
         #FileManager.SaveImage(thresh, "otsu.png")
         #FileManager.SaveImage(dummy, "dummy.png")
