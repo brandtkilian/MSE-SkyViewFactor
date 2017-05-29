@@ -6,6 +6,7 @@ from sklearn.utils import shuffle
 import random
 import numpy as np
 from enum import IntEnum
+from tools.ImageTransform import ImageTransform
 
 
 class NormType(IntEnum):
@@ -39,12 +40,22 @@ class TransformDescriptor():
 
 class ImageDataGenerator:
 
-    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False):
+    def __init__(self, src_directory, labels_directory, target_width, target_height, input_width=1440, input_height=1440, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False, torify=True):
         self.src_directory = src_directory
         self.labels_directory = labels_directory
-        self.width = width
-        self.height = height
-        self.nblbl = nblbl
+        self.width = target_width
+        self.height = target_height
+        self.input_width = input_width,
+        self.input_height = input_height
+        self.nblbl = 3 if torify else 4
+        self.torify = torify
+        self.angle = 360.
+
+        if torify:
+            delta_r = float(input_width) / target_width
+            delta_angle = float(input_width) / self.angle
+            self.image_transform = ImageTransform(input_width, input_height, (input_width / 2, input_height / 2), input_width / 2, delta_angle, delta_r)
+
         self.lower_rotation_bound = lower_rotation_bound
         self.higher_rotation_bound = higher_rotation_bound
         self.norm_type = norm_type
@@ -53,7 +64,7 @@ class ImageDataGenerator:
         self.rotate = rotate
         self.batch_size = batch_size
         self.seed = seed
-        self.mask = self.get_void_mask(width, height)
+        self.mask = self.get_void_mask(target_width, target_height)
         self.reg = r'\w+\.(jpg|jpeg|png)'
         self.img_files = sorted([f for f in os.listdir(self.src_directory) if re.match(self.reg, f.lower())])
         self.lbl_files = sorted([f for f in os.listdir(self.labels_directory) if re.match(self.reg, f.lower())])
@@ -94,7 +105,14 @@ class ImageDataGenerator:
             for a in self.angles:
                 name = self.img_files[i % length]
                 img = FileManager.LoadImage(name, self.src_directory)
-                img = self.resize_if_needed(img)
+
+                if self.rotate:
+                    img = self.rotate_image(img, a)
+
+                if self.torify:
+                    img = self.image_transform.torify_image(img)
+                else:
+                    img = self.resize_if_needed(img)
 
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
@@ -105,12 +123,9 @@ class ImageDataGenerator:
                     random.shuffle(self.transforms_family)
                     for td in self.transforms_family:
                         img = td.call(img)
-                if self.rotate:
-                    img = self.rotate_image(img, a)
 
                 if self.magentize:
                     img = self.colorize_void(idx, color, img)
-                FileManager.SaveImage(img, "img%d.png" % j, "outputs/imgs_gen/")
                 j += 1
 
                 img = np.rollaxis(img, 2) if roll_axis else img
@@ -134,12 +149,14 @@ class ImageDataGenerator:
                 else:
                     lbl = FileManager.LoadImage(name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
-                lbl = self.resize_if_needed(lbl, is_label=True)
-
                 if self.rotate:
                     lbl = self.rotate_image(lbl, a, is_label=True)
 
-                FileManager.SaveImage(lbl, "lbl%d.png" % i, "outputs/lbls_gen/")
+                if self.torify:
+                    lbl = self.image_transform.torify_image(lbl, interpolation=cv2.INTER_NEAREST)
+                else:
+                    lbl = self.resize_if_needed(lbl, is_label=True)
+
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))

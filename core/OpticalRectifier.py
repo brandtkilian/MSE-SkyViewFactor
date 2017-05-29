@@ -14,19 +14,19 @@ class OpticalRectifier:
         self.tableSrc = tableSrc
         self.imgViewAngle = imgViewAngle
         self.mapping = None
-        self.InitializeCoordsTransform(imgWidth, imgHeight)
+        self.initialize_coords_transform(imgWidth, imgHeight)
         self.mask = np.zeros((imgHeight, imgWidth, 1), np.uint8)
         cv2.circle(self.mask, (imgWidth/2, imgHeight/2), imgWidth/2, (255, 255, 255), -1)
 
 
     @profile
-    def rectifyImage(self, img):
+    def rectify_image(self, img):
         rectified = img[self.mapping[..., 1], self.mapping[..., 0]]
         masked = cv2.bitwise_and(rectified, rectified, mask=self.mask)
         return masked
 
     @profile
-    def InitializeCoordsTransform(self, width, height):
+    def initialize_coords_transform(self, width, height):
         if self.mapping is None:
             self.mapping = np.zeros((height, width, 2), np.int32)
 
@@ -34,7 +34,7 @@ class OpticalRectifier:
             xCenter = width / 2
             yCenter = height / 2
 
-            tableCorr = self.getRectifiedCalibTable(rI)
+            tableCorr = self.get_rectified_calib_table(rI)
             summedTableSrc = [0] + [sum(self.tableSrc[:i+1]) for i in range(len(self.tableSrc))]
 
             f = np.poly1d(np.polyfit(tableCorr, np.asarray(summedTableSrc), 3))
@@ -56,12 +56,12 @@ class OpticalRectifier:
                         self.mapping[yCor, xCor, 0] = xSrc
                         self.mapping[yCor, xCor, 1] = ySrc
 
-    def getRectifiedCalibTable(self, rI):
+    def get_rectified_calib_table(self, rI):
         length = len(self.tableSrc)
         assert length > 0
         return np.asarray([0] + [(rI / length) * (i+1) for i in range(length)])
 
-    def rectifyAllInputs(self, inputFolder, outputFolder):
+    def rectify_all_inputs(self, inputFolder, outputFolder):
         def path_leaf(path):
             head, tail = ntpath.split(path)
             return tail or ntpath.basename(head)
@@ -79,7 +79,7 @@ class OpticalRectifier:
         for file in sorted(toTreat):
             startTime = time.time()
             imgSrc = FileManager.LoadImage(file)
-            imgres = self.rectifyImage(imgSrc)
+            imgres = self.rectify_image(imgSrc)
 
             FileManager.SaveImage(imgres, path_leaf(file), outputFolder)
             ell_time += time.time() - startTime

@@ -13,7 +13,7 @@ from tools.MaskMerger import MasksMerger
 
 width = 480
 heigth = 480
-nblbl = 4
+torify = True
 
 def rectify_all_inputs(inputFolder, outputFolder):
     tableSrc = [24, 25, 25, 26, 26, 27, 27, 29, 29, 32, 32, 36, 36, 40, 41, 43, 44]
@@ -22,7 +22,7 @@ def rectify_all_inputs(inputFolder, outputFolder):
     imgHeight = 1440
 
     oprec = OpticalRectifier(tableSrc, imgViewAngle, imgWidth, imgHeight)
-    oprec.rectifyAllInputs(inputFolder, outputFolder)
+    oprec.rectify_all_inputs(inputFolder, outputFolder)
 
 
 def merge_masks():
@@ -62,7 +62,7 @@ def prepare_new_labels(final_size, labels_path="images/newlabels", src_path="ima
 if __name__ == '__main__':
     class_weights = {0: 1.9991311197110881, 1: 4.768665483757782, 2: 9.548975463506991, 3: 5.39499062619272}
     #class_weights = prepare_dataset(resize_tests_images=False)
-    cnn_main(width, heigth, nblbl)
+    cnn_main(width, heigth, torify)
 
     #beginSelection("/home/brandtk/SVF-tocorrect/src", "/home/brandtk/SVF-tocorrect/pred", "outputs/")
     #prepare_new_labels((1440, 1440), "images/labels480x480", "/home/brandtk/Desktop/SVF/outputs_NE")

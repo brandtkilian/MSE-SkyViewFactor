@@ -11,9 +11,10 @@ import numpy as np
 
 class BalancedImageDataGenerator(ImageDataGenerator):
 
-    def __init__(self, src_directory, labels_directory, width, height, nblbl, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False):
-        ImageDataGenerator.__init__(self, src_directory, labels_directory, width, height=height, nblbl=nblbl, transforms=transforms, allow_transforms=allow_transforms,
-                       rotate=rotate, lower_rotation_bound=lower_rotation_bound, higher_rotation_bound=higher_rotation_bound, norm_type=norm_type, magentize=magentize, batch_size=batch_size, seed=seed, shuffled=shuffled, yield_names=yield_names)
+    def __init__(self, src_directory, labels_directory, target_width, target_height, input_width=1440, input_height=1440, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False, torify=True):
+        ImageDataGenerator.__init__(self, src_directory, labels_directory, target_width, target_height, input_width=input_width, input_height=input_height, transforms=transforms, allow_transforms=allow_transforms,
+                                    rotate=rotate, lower_rotation_bound=lower_rotation_bound, higher_rotation_bound=higher_rotation_bound, norm_type=norm_type, magentize=magentize, batch_size=batch_size,
+                                    seed=seed, shuffled=shuffled, yield_names=yield_names, torify=torify)
 
         self.veg_img = []
         self.built_img = []
@@ -154,17 +155,20 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print "lbl  %d" %a
                 name = self.current_iteration_lbl[i % length]
                 if binarized:
                     lbl = FileManager.LoadImage(name, self.labels_directory)
                 else:
                     lbl = FileManager.LoadImage(name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
-                lbl = self.resize_if_needed(lbl, is_label=True)
-
                 if self.rotate:
                     lbl = self.rotate_image(lbl, a, is_label=True)
+
+                if self.torify:
+                    lbl = self.image_transform.torify_image(lbl, interpolation=cv2.INTER_NEAREST)
+                else:
+                    lbl = self.resize_if_needed(lbl, is_label=True)
+
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
@@ -183,10 +187,18 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-                print "img %d" % a
+
                 name = self.current_iteration_img[i % length]
                 img = FileManager.LoadImage(name, self.src_directory)
-                img = self.resize_if_needed(img)
+
+                if self.rotate:
+                    img = self.rotate_image(img, a)
+
+                if self.torify:
+                    img = self.image_transform.torify_image(img)
+                else:
+                    img = self.resize_if_needed(img)
+
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
                 elif self.norm_type == NormType.StdMean:
@@ -196,8 +208,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                     random.shuffle(self.transforms_family)
                     for td in self.transforms_family:
                         img = td.call(img)
-                if self.rotate:
-                    img = self.rotate_image(img, a)
 
                 if self.magentize:
                     img = self.colorize_void(idx, color, img)
