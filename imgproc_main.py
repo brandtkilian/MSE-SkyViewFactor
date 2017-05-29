@@ -18,6 +18,7 @@ import random
 from tools.BSPMarkerCreator import BSPMarkerCreator
 from tools.MaskMerger import MasksMerger
 from tools.ClassificationSelector import beginSelection
+from tools.ImageTransform import ImageTransform
 
 
 def segmentation_by_color():
@@ -328,7 +329,7 @@ if __name__ == '__main__':
     svf_graphs()
     #test_balanced_generator()
     #sky_view_factor_test()
-    sky_view_factor_angle_test()
+    #sky_view_factor_angle_test()
     #test_svf_algorithm()
 
     folds = ["sky", "veg", "built"]
@@ -340,7 +341,15 @@ if __name__ == '__main__':
 
     #MasksMerger.merge_masks_from_all("images/tomerge/sky", "images/tomerge/veg", "images/tomerge/built", mask, "outputs/merged")
     #MasksMerger.merge_from_sky_and_build("images/build", "images/sky", mask, "outputs/megerino")
-    beginSelection("images/SVF-dataset-150/src", "images/SVF-dataset-150/labels", "outputs/default")
+    #beginSelection("images/SVF-dataset-150/src", "images/SVF-dataset-150/labels", "outputs/default")
+
+    it = ImageTransform(480, 480, (240, 240), 240)
+    img = FileManager.LoadImage("0001.png", "images/predictions")
+    res = it.torify_image(img, interpolation=cv2.INTER_NEAREST)
+    FileManager.SaveImage(res, "0001_tor.png")
+    res2 = it.untorify_image(res, interpolation=cv2.INTER_NEAREST)
+    FileManager.SaveImage(res2, "0001_untor.png")
+
 
 
 

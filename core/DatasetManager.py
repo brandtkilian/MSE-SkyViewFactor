@@ -23,10 +23,10 @@ class DatasetManager:
         self.dataset_output_path = dataset_output_path
         self.test_percentage = float(test_percentage)
         self.valid_percentage = float(valid_percentage)
-        self.targetSize = (1440, 1440)
+        self.input_size = (1440, 1440)
         if isinstance(input_size, tuple):
             if len(input_size) == 2:
-                self.targetSize = input_size
+                self.input_size = input_size
             elif len(input_size) > 2:
                 self.input_size = (self.input_size[0], self.input_size[1])
 
@@ -83,7 +83,7 @@ class DatasetManager:
                 FileManager.SaveImage(imgSrc, f, self.labels_path)
                 nbUnsane += 1
             else:
-                shutil.move(os.path.join(self.labels_path, FileManager.path_leaf(f)), os.path.join(output_sane_labels_path, FileManager.path_leaf(f)))
+                shutil.copy(os.path.join(self.labels_path, FileManager.path_leaf(f)), os.path.join(output_sane_labels_path, FileManager.path_leaf(f)))
 
         print "%d labels images unsane detected, please check the unsanity masks in %s" % (nbUnsane, output_unsanity_masks_path)
 
@@ -94,12 +94,15 @@ class DatasetManager:
         return nbUnsane
 
     def create_annotated_images(self):
+        if os.path.exists(self.dataset_output_path):
+            return
+
         if not os.path.exists(self.annot_output_path):
             os.makedirs(self.annot_output_path)
 
         files = [f for f in os.listdir(self.labels_path) if re.match(self.reg, f.lower())]
 
-        nbVoid = cv2.countNonZero(self.mask)
+        nbVoid = cv2.countNonZero(cv2.bitwise_not(self.mask))
 
         for f in files:
             imgSrc = FileManager.LoadImage(f, self.labels_path)
@@ -114,6 +117,7 @@ class DatasetManager:
             annots[idxSky] = Classes.SKY
             annots[idxVegetation] = Classes.VEGETATION
             annots[idxBuild] = Classes.BUILT
+            annots[self.mask == 0] = Classes.VOID
 
             self.classes_weigth[Classes.SKY] += cv2.countNonZero(b)
             self.classes_weigth[Classes.VEGETATION] += cv2.countNonZero(g)
@@ -123,7 +127,7 @@ class DatasetManager:
             FileManager.SaveImage(annots, f, self.annot_output_path)
 
         tot_pixels = sum(self.classes_weigth.values())
-        self.classes_weigth = {k: (v/float(tot_pixels)) for k, v in self.classes_weigth.items()}
+        self.classes_weigth = {k: 1.0/(v/float(tot_pixels)) if tot_pixels != 0 else 0 for k, v in self.classes_weigth.items()}
 
         print "Classes weigths ", self.classes_weigth
         self.labels_path = self.annot_output_path
@@ -209,7 +213,7 @@ class DatasetManager:
 
         for i in range(len(img_names)):
             img = FileManager.LoadImage(img_names[i], input_dir)
-            resizedSrcImg = cv2.resize(img, self.targetSize, interpolation=cv2.INTER_CUBIC)
+            resizedSrcImg = cv2.resize(img, self.input_size, interpolation=cv2.INTER_CUBIC)
             FileManager.SaveImage(resizedSrcImg, img_names[i], output_dir)
 
     def split_dataset_by_mostly_represented_class(self, input_src, input_annotated, mask, output_sky_most="outputs/sorted_dataset/sky/", output_veg_most="outputs/sorted_dataset/veg/",
