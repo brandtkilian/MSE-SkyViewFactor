@@ -7,6 +7,7 @@ from tools.MaskCreator import MaskCreator
 from sklearn.utils import shuffle
 import random
 import numpy as np
+from core.ColorSpaceConverter import ColorSpaceConverter
 
 
 class BalancedImageDataGenerator(ImageDataGenerator):
@@ -169,9 +170,12 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 else:
                     lbl = self.resize_if_needed(lbl, is_label=True)
 
+                FileManager.SaveImage(lbl, name, "outputs/gen_lbl")
+
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
+
                 if self.yield_names:
                     yield lbl, name
                 else:
@@ -187,7 +191,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         while True:
             i = 0
             for a in self.angles:
-
                 name = self.current_iteration_img[i % length]
                 img = FileManager.LoadImage(name, self.src_directory)
 
@@ -201,8 +204,8 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
                 if self.norm_type == NormType.Equalize:
                     img = self.normalize(img)
-                elif self.norm_type == NormType.StdMean:
-                    img = self.normalize_std(img)
+                elif self.norm_type & NormType.EqualizeClahe == NormType.EqualizeClahe:
+                    img = self.normalize_clahe(img)
 
                 if self.allow_transform:
                     random.shuffle(self.transforms_family)
@@ -211,9 +214,15 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
                 if self.magentize and not self.torify:
                     img = self.colorize_void(idx, color, img)
+
+                if self.norm_type & NormType.StdMean == NormType.StdMean:
+                    img = self.normalize_std(img)
+                elif self.norm_type & NormType.SPHcl == NormType.SPHcl:
+                    img = ColorSpaceConverter.get_spherical_hcl(img)
+
                 j += 1
 
-                #FileManager.SaveImage(img, name, "outputs/gen_img")
+                FileManager.SaveImage(img, name, "outputs/gen_img")
                 img = np.rollaxis(img, 2) if roll_axis else img
                 if self.yield_names:
                     yield img, name

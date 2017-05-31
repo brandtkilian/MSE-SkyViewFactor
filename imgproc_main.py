@@ -19,6 +19,7 @@ from tools.BSPMarkerCreator import BSPMarkerCreator
 from tools.MaskMerger import MasksMerger
 from tools.ClassificationSelector import beginSelection
 from tools.ImageTransform import ImageTransform
+import re
 
 
 def segmentation_by_color():
@@ -207,12 +208,10 @@ def test_balanced_generator():
     print averages
 
 
-def svf_graph_and_mse():
-    path_gt = "cnn/dataset/tests/labels"
-    path_pred = "cnn/evaluations/predictions2017-05-17_12:57:48/predictions"
-
-    gt = sorted([f for f in os.listdir(path_gt)])[:]
-    preds = sorted([f for f in os.listdir(path_pred)])[:]
+def svf_graph_and_mse(path_gt, path_pred, output_path):
+    reg =  r'\d+\.png'
+    gt = sorted([f for f in os.listdir(path_gt) if re.match(reg, f.lower())])[:]
+    preds = sorted([f for f in os.listdir(path_pred) if re.match(reg, f.lower())])[:]
 
     true_sky = []
     true_veg = []
@@ -220,7 +219,8 @@ def svf_graph_and_mse():
 
     for f in gt:
         img = FileManager.LoadImage(f, path_gt, flags=cv2.IMREAD_GRAYSCALE)
-        factors = SkyViewFactorCalculator.compute_factor_annotated_labels(img, center=(240, 240), radius=240)
+        rad = img.shape[1] / 2
+        factors = SkyViewFactorCalculator.compute_factor_annotated_labels(img, center=(rad, rad), radius=rad)
         true_sky.append(factors[0])
         true_veg.append(factors[1])
         true_built.append(factors[2])
@@ -231,7 +231,8 @@ def svf_graph_and_mse():
 
     for f in preds:
         img = FileManager.LoadImage(f, path_pred)
-        factors = SkyViewFactorCalculator.compute_factor_bgr_labels(img, center=(240, 240), radius=240)
+        rad = img.shape[1] / 2
+        factors = SkyViewFactorCalculator.compute_factor_bgr_labels(img, center=(rad, rad), radius=rad)
         pred_sky.append(factors[0])
         pred_veg.append(factors[1])
         pred_built.append(factors[2])
@@ -249,6 +250,8 @@ def svf_graph_and_mse():
     styles = ['bo', 'g^', 'rs']
     i = 0
     for true, pred in to_compute:
+        plt.cla()
+        plt.clf()
         plt.subplot(111)
         plt.plot(true, pred, styles[i])
         plt.suptitle("%s view factor (MSE=%.3E)" % (labels[i], mses[i]))
@@ -256,7 +259,7 @@ def svf_graph_and_mse():
         plt.ylabel("Predict")
         plt.axis((0, 1, 0, 1))
         plt.plot([0, 1], [0, 1], ls="--", c=".2")
-        plt.savefig("outputs/mse_%s.jpg" % labels[i])
+        plt.savefig(os.path.join(output_path, "mse_%s.jpg" % labels[i]))
         plt.cla()
         i += 1
 
@@ -304,6 +307,7 @@ def test_segmentation_watershed():
         FileManager.SaveImage(sky_mask_color, src, "outputs/watershedtests/color")
 
     mse = SkyViewFactorCalculator.compute_mean_square_error(svfs_gt, svfs_pred)
+    plt.cla()
     plt.subplot(111)
     plt.plot(svfs_gt, svfs_pred, "bo")
     plt.suptitle("Sky view factor (MSE=%.3E)" % mse)
@@ -343,12 +347,6 @@ if __name__ == '__main__':
     #MasksMerger.merge_from_sky_and_build("images/build", "images/sky", mask, "outputs/megerino")
     #beginSelection("images/SVF-dataset-150/src", "images/SVF-dataset-150/labels", "outputs/default")
 
-    it = ImageTransform(480, 480, (240, 240), 240)
-    img = FileManager.LoadImage("0001.png", "images/predictions")
-    res = it.torify_image(img, interpolation=cv2.INTER_NEAREST)
-    FileManager.SaveImage(res, "0001_tor.png")
-    res2 = it.untorify_image(res, interpolation=cv2.INTER_NEAREST)
-    FileManager.SaveImage(res2, "0001_untor.png")
 
 
 

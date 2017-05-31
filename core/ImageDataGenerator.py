@@ -7,12 +7,15 @@ import random
 import numpy as np
 from enum import IntEnum
 from tools.ImageTransform import ImageTransform
+from core.ColorSpaceConverter import ColorSpaceConverter
 
 
 class NormType(IntEnum):
-    Equalize = 0
-    StdMean = 2
-    Nothing = 1
+    Equalize = 1
+    EqualizeClahe = 2
+    StdMean = 4
+    SPHcl = 8
+    Nothing = 16
 
 
 class PossibleTransform(IntEnum):
@@ -21,7 +24,8 @@ class PossibleTransform(IntEnum):
     GaussianNoise = 2
     Sharpen = 3
     AddSub = 5
-    Invert = 6
+    AddSubChannel = 7
+    Invert = 7
 
 
 class TransformDescriptor():
@@ -65,7 +69,7 @@ class ImageDataGenerator:
         self.rotate = rotate
         self.batch_size = batch_size
         self.seed = seed
-        self.mask = self.get_void_mask(input_width, input_height)
+        self.mask = self.get_void_mask(target_width, target_height)
         self.reg = r'\w+\.(jpg|jpeg|png)'
         self.img_files = sorted([f for f in os.listdir(self.src_directory) if re.match(self.reg, f.lower())])
         self.lbl_files = sorted([f for f in os.listdir(self.labels_directory) if re.match(self.reg, f.lower())])
@@ -115,10 +119,10 @@ class ImageDataGenerator:
                 else:
                     img = self.resize_if_needed(img)
 
-                if self.norm_type == NormType.Equalize:
+                if self.norm_type & NormType.Equalize == NormType.Equalize:
                     img = self.normalize(img)
-                elif self.norm_type == NormType.StdMean:
-                    img = self.normalize_std(img)
+                elif self.norm_type & NormType.EqualizeClahe == NormType.EqualizeClahe:
+                    img = self.normalize_clahe(img)
 
                 if self.allow_transform:
                     random.shuffle(self.transforms_family)
@@ -127,8 +131,13 @@ class ImageDataGenerator:
 
                 if self.magentize and not self.torify:
                     img = self.colorize_void(idx, color, img)
-                j += 1
 
+                if self.norm_type & NormType.StdMean == NormType.StdMean:
+                    img = self.normalize_std(img)
+                elif self.norm_type & NormType.SPHcl == NormType.SPHcl:
+                    img = ColorSpaceConverter.get_spherical_hcl(img)
+
+                j += 1
                 img = np.rollaxis(img, 2) if roll_axis else img
                 if self.yield_names:
                     yield img, name
@@ -190,8 +199,8 @@ class ImageDataGenerator:
                 batch = []
                 i = 0
 
-    def normalize(self, rgb):
-        b, g, r = cv2.split(rgb)
+    def normalize_clahe(self, bgr):
+        b, g, r = cv2.split(bgr)
 
         clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(int(self.width / 30), int(self.height / 30)))
         channels = (b, g, r)
@@ -229,6 +238,17 @@ class ImageDataGenerator:
         return cv2.merge((b, g, r))
 
     @staticmethod
+    def normalize(bgr):
+        b, g, r = cv2.split(bgr)
+
+        channels = (b, g, r)
+        equalized = []
+        for c in channels:
+            equalized.append(cv2.equalizeHist(c))
+
+        return cv2.merge(equalized)
+
+    @staticmethod
     def normalize_std(rgb):
         b, g, r = cv2.split(rgb)
 
@@ -264,6 +284,16 @@ class ImageDataGenerator:
         return res
 
     @staticmethod
+    def add_or_sub_per_channel(image):
+        b, g, r = cv2.split(image)
+        channels = [b, g, r]
+
+        a_o_s = []
+        for c in channels:
+            a_o_s.append(ImageDataGenerator.add_or_sub(c))
+        return cv2.merge(a_o_s)
+
+    @staticmethod
     def add_or_sub(image):
         bound = 50
         add_val = random.randint(0, bound) - int(bound/2)
@@ -280,7 +310,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def multiply(image):
-        bound = 0.15
+        bound = 0.20
         image = image.astype(np.float64)
         factor = random.uniform(0.0, bound) - bound/2
         image *= (1 - factor)

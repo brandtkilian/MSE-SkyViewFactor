@@ -24,18 +24,22 @@ from keras.callbacks import EarlyStopping
 from core.SkyViewFactorCalculator import SkyViewFactorCalculator
 from core.ClassesEnum import Classes
 from tools.ImageTransform import ImageTransform
+from tools.MaskCreator import MaskCreator
+from imgproc_main import svf_graph_and_mse
 
 import random
 
 
-def prep_data(base_path, from_path, width, height, torify, magentize=True):
+def prep_data(base_path, from_path, width, height, norm_type=NormType.Equalize,
+              torify=False, magentize=True):
     train_data = []
     train_label = []
 
     img_path = os.path.join(base_path, from_path, "src")
     lbl_path = os.path.join(base_path, from_path, "labels")
 
-    idg = ImageDataGenerator(img_path, lbl_path, width, height, torify, allow_transforms=False, norm_type=NormType.Equalize, shuffled=False, magentize=magentize)
+    idg = ImageDataGenerator(img_path, lbl_path, width, height, allow_transforms=False, norm_type=norm_type,
+                             shuffled=False, magentize=magentize, torify=torify)
 
     i = 0
     for img in idg.image_generator():
@@ -54,44 +58,60 @@ def prep_data(base_path, from_path, width, height, torify, magentize=True):
     return np.array(train_data), np.array(train_label), idg.img_files, idg.lbl_files
 
 
-
-def get_images_generator_for_cnn(image_path, width, height, torify, magentize=True):
-    idg = ImageDataGenerator(image_path, image_path, width, height, magentize=magentize, allow_transforms=False, rotate=False, shuffled=False, torify=torify)
+def get_images_generator_for_cnn(image_path, width, height, norm_type=NormType.Equalize, magentize=True, torify=False, yield_names=False):
+    idg = ImageDataGenerator(image_path, image_path, width, height, magentize=magentize, norm_type=norm_type,
+                             allow_transforms=False, rotate=False, shuffled=False, torify=torify,
+                             yield_names=yield_names)
     return idg
 
 
-
-def train_model(width, height, torify, dataset_path, weights_filepath, batch_size=6, nb_epoch=100):
+def train_model(width, height, dataset_path, weights_filepath, batch_size=6, nb_epoch=100, class_weights=None,
+                magentize=True, norm_type=NormType.Equalize, torify=False, early_stopping=False):
     np.random.seed(1337)  # for reproducibility
     nblbl = Classes.nb_lbl(torify)
-    train_data, train_label, _, _ = prep_data(dataset_path, "train", width, height, torify)
-    valid_data, valid_label, _, _ = prep_data(dataset_path, "valid", width, height, torify)
+    train_data, train_label, _, _ = prep_data(dataset_path, "train", width, height, torify=torify,
+                                              magentize=magentize, norm_type=norm_type)
+    valid_data, valid_label, _, _ = prep_data(dataset_path, "valid", width, height, torify=torify,
+                                              magentize=magentize, norm_type=norm_type)
 
-    #class_weighting = [2.0, 4.61005688, 10.03329372, 5.45229053]  # dataset 100
-    class_weighting = [1.99913108, 4.76866531,  9.54897594, 5.39499044]  # dataset 193
+    class_weights = [1.0 for _ in range(nblbl)] if class_weights is None else class_weights[:nblbl]
+
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as s:
         autoencoder = create_model(width, height, nblbl)
 
+        min_delta = 1e-3
+        patience = 20
+        monitor = 'loss'
+        mode = 'auto'
+        earlyStopping = EarlyStopping(monitor=monitor, min_delta=min_delta, patience=patience, verbose=1, mode=mode)
+        callbacks = []
+        if early_stopping:
+            callbacks.append(earlyStopping)
+
         s.run(tf.global_variables_initializer())
         history = autoencoder.fit(train_data, train_label, batch_size=batch_size, nb_epoch=nb_epoch, verbose=1,
-                                  class_weight=class_weighting, shuffle=True, validation_data=(valid_data, valid_label))
+                                  class_weight=class_weights, shuffle=True, validation_data=(valid_data, valid_label),
+                                  callbacks=callbacks)
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "magentize, no augmentation, equalizeClahe"
+        comments = "trained without data augmentation, early_stopping %r " \
+                   "(monitor=%s, min_delta=%f, patience=%d, mode=%s)" % (early_stopping, monitor,
+                                                                         min_delta, patience, mode)
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
         add_weights_entry(weights_filepath, (width, height), nb_epoch, batch_size, len(train_data),
-                          len(valid_data), graph_path, data_augmentation=False, comments=comments, torify=torify)
+                          len(valid_data), weights_filepath, graph_path, norm_type=norm_type, data_augmentation=False,
+                          comments=comments, torify=torify)
 
 
-def train_model_generators(width, height, torify, dataset_path, weights_filepath, nb_epoch=100,
-                           batch_size=6, samples_per_epoch=240, samples_valid=-1, balanced=True, early_stopping=False):
-    class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
+def train_model_generators(width, height, dataset_path, weights_filepath, nb_epoch=100,
+                           batch_size=6, class_weights=None, samples_per_epoch=200, samples_valid=-1, balanced=True,
+                           norm_type=NormType.Equalize, magentize=True, torify=False, early_stopping=False):
 
     nblbl = Classes.nb_lbl(torify)
     img_path_train = os.path.join(dataset_path, "train", "src")
@@ -100,26 +120,30 @@ def train_model_generators(width, height, torify, dataset_path, weights_filepath
     img_path_valid = os.path.join(dataset_path, "valid", "src")
     lbl_path_valid = os.path.join(dataset_path, "valid", "labels")
 
+    probabilities = 0.1
     transforms = [(PossibleTransform.GaussianNoise, 0.1),
                   (PossibleTransform.Sharpen, 0.1),
                   (PossibleTransform.MultiplyPerChannels, 0.1),
                   (PossibleTransform.AddSub, 0.1),
                   (PossibleTransform.Multiply, 0.1), ]
+    n_transforms = len(transforms)
 
     if balanced:
-        class_weighting = [1, 1, 1, 1]
+        class_weights = [1.0 for _ in range(nblbl)]
         idg_train = BalancedImageDataGenerator(img_path_train, lbl_path_train, width, height, allow_transforms=True,
                                                rotate=True, transforms=transforms,
-                                               lower_rotation_bound=0, higher_rotation_bound=360, magentize=True,
-                                               norm_type=NormType.Equalize,
+                                               lower_rotation_bound=0, higher_rotation_bound=360, magentize=magentize,
+                                               norm_type=norm_type,
                                                batch_size=batch_size, seed=random.randint(1, 10e6), torify=torify)
     else:
-        class_weighting = [1.999981, 4.88866531, 8.954169, 5.4417043]
-        idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, allow_transforms=True, rotate=True, transforms=transforms,
-                                       lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, norm_type=NormType.Equalize,
+        class_weights = [1.0 for _ in range(nblbl)] if class_weights is None else class_weights[:nblbl]
+        idg_train = ImageDataGenerator(img_path_train, lbl_path_train, width, height, allow_transforms=True,
+                                       rotate=True, transforms=transforms,
+                                       lower_rotation_bound=0, higher_rotation_bound=360, magentize=magentize,
+                                       norm_type=norm_type,
                                        batch_size=batch_size, seed=random.randint(1, 10e6), torify=torify)
 
-    idg_valid = ImageDataGenerator(img_path_valid, lbl_path_valid, width, height, magentize=True, norm_type=NormType.Equalize, rotate=False,
+    idg_valid = ImageDataGenerator(img_path_valid, lbl_path_valid, width, height, magentize=magentize, norm_type=norm_type, rotate=False,
                                    batch_size=batch_size, seed=random.randint(1, 10e6), shuffled=False, torify=torify)
 
     config = tf.ConfigProto()
@@ -135,27 +159,36 @@ def train_model_generators(width, height, torify, dataset_path, weights_filepath
 
         if samples_valid < 0:
             samples_valid = len(idg_valid.lbl_files)
-        earlyStopping = EarlyStopping(monitor='loss', min_delta=1e-3, patience=10, verbose=1, mode='auto')
+        min_delta=1e-3
+        patience=15
+        monitor='loss'
+        mode='auto'
+        earlyStopping = EarlyStopping(monitor=monitor, min_delta=min_delta, patience=patience, verbose=1, mode=mode)
         callback = []
         if early_stopping:
             callback = callback.append(earlyStopping)
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
                                             verbose=1, validation_data=valid_generator,
                                             nb_val_samples=samples_valid,
-                                            class_weight=class_weighting, callbacks=callback)
+                                            class_weight=class_weights, callbacks=callback)
 
         autoencoder.save_weights(weights_filepath)
 
-        comments = "equalizeCLAHE, adadelta, balanced %r, early_stopping %r" % (balanced, early_stopping)
+        comments = "trained with data augmentation, balanced generator %r, proba transform %f, nb transforms %d, early_stopping %r " \
+                   "(monitor=%s, min_delta=%f, patience=%d, mode=%s)" % (balanced, probabilities, n_transforms,
+                                                                         early_stopping, monitor,
+                                                                         min_delta, patience, mode)
 
         graph_path = os.path.join("./cnn/weights/graphs", ntpath.basename(weights_filepath).split(".")[0])
         save_history_graphs(history, "model", graph_path)
         add_weights_entry(weights_filepath, (width, height), nb_epoch, batch_size, len(idg_train.img_files),
-                          len(idg_valid.img_files), graph_path, data_augmentation=True, sample_per_epoch=samples_per_epoch,
+                          len(idg_valid.img_files), weights_filepath, graph_path, data_augmentation=True,
+                          sample_per_epoch=samples_per_epoch,
                           nb_val_sample=samples_valid, comments=comments, torify=torify)
 
 
-def test_model(width, height, torify, test_images_path, weights_filepath, prediction_output_path, magentize=True):
+def test_model(width, height, torify, test_images_path, weights_filepath, prediction_output_path,
+               norm_type=NormType.Equalize, magentize=True):
     nblbl = Classes.nb_lbl(torify)
     autoencoder = create_model(width, height, nblbl)
     autoencoder.load_weights(weights_filepath)
@@ -165,12 +198,13 @@ def test_model(width, height, torify, test_images_path, weights_filepath, predic
     Vegetation = [0, 0, 255]
     Void = [0, 0, 0]
 
-    label_colours = np.array([Void, Sky, Building, Vegetation])
-    idg = get_images_generator_for_cnn(test_images_path, width, height, torify, magentize=magentize)
+    label_colours = np.array([Sky, Building, Vegetation, Void])
+    idg = get_images_generator_for_cnn(test_images_path, width, height, torify, norm_type=norm_type, magentize=magentize)
+    idg.yield_names = True
     length = len(idg.img_files)
 
     i = 0
-    for (img_name, test_data) in idg.image_generator():
+    for (test_data, img_name) in idg.image_generator():
         output = autoencoder.predict_proba(np.array([test_data]))
         reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
         pred = visualize(reshaped_output, label_colours, nblbl)
@@ -186,44 +220,48 @@ def test_model(width, height, torify, test_images_path, weights_filepath, predic
             break
 
 
-def classify_images(images_path, weights_filepath, csv_output, save_outputs=False, classification_output_path="outputs/predictions", width=480, height=480, torify=True, magentize=True, gravity_angle=False):
+def classify_images(images_path, weights_filepath, csv_output, save_outputs=False, save_overlay=False, classification_output_path="outputs/predictions", width=480, height=480,
+                    norm_type=NormType.EqualizeClahe, magentize=True, torify=False, gravity_angle=False):
     nblbl = Classes.nb_lbl(torify)
     autoencoder = create_model(width, height, nblbl)
     autoencoder.load_weights(weights_filepath)
     Sky = [255, 0, 0]
-    Building = [0, 255, 0]
-    Vegetation = [0, 0, 255]
+    Building = [0, 0, 255]
+    Vegetation = [0, 255, 0]
     Void = [0, 0, 0]
-    label_colours = np.array([Void, Sky, Building, Vegetation])
+    label_colours = np.array([Sky, Vegetation, Building, Void])
 
     values = []
     directory = os.path.dirname(csv_output)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    radius = width / 2
-    center = (radius, radius)
+    overlay_path = os.path.join(classification_output_path, "overlays")
+
     headers = ["src_name", "SVF", "VVF", "BVF", "sky grav_center\n"] if gravity_angle else ["src_name", "SVF", "VVF", "BVF\n"]
 
     with open(csv_output, "w+") as f:
         f.write(",".join(headers))
 
-
-    idg = get_images_generator_for_cnn(images_path, width, height, torify, magentize=magentize)
+    idg = get_images_generator_for_cnn(images_path, width, height,
+                                       norm_type=norm_type, magentize=magentize,
+                                       torify=torify, yield_names=True)
     length = len(idg.img_files)
 
     i = 0
     with open(csv_output, "w") as f:
         f.write(",".join(["src_name", "SVF", "VVF", "BVF", "sky", "grav_center_angle\n"]))
-        for (img_name, test_data) in idg.image_generator():
-            output = autoencoder.predict_proba(np.array([test_data]))
+        for (img, img_name) in idg.image_generator():
+            output = autoencoder.predict_proba(np.array([img]))
             reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
             pred = visualize(reshaped_output, label_colours, nblbl)
 
             if torify:
                 pred = idg.image_transform.untorify_image(pred)
 
-            factors = SkyViewFactorCalculator.compute_factor_bgr_labels(pred)
+            center = (pred.shape[1] / 2, pred.shape[0] / 2)
+            radius = pred.shape[1] / 2
+            factors = SkyViewFactorCalculator.compute_factor_bgr_labels(pred, center=center, radius=radius)
             values.append(img_name)
             values.append("%.5f" % factors[0])
             values.append("%.5f" % factors[1])
@@ -231,7 +269,11 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
 
             if gravity_angle:
                 b, g, r = cv2.split(pred)
-                grav_center = SkyViewFactorCalculator.compute_sky_angle_estimation(b, center=center, radius_low=0, radius_top=radius, center_factor=center, radius_factor=radius, sky_view_factor=factors[0])
+                grav_center = SkyViewFactorCalculator.compute_sky_angle_estimation(b, center=center, radius_low=0,
+                                                                                   radius_top=radius,
+                                                                                   center_factor=center,
+                                                                                   radius_factor=radius,
+                                                                                   sky_view_factor=factors[0])
                 rad_pixels = grav_center * (radius / 90)
                 cv2.circle(pred, center, int(rad_pixels), (255, 255, 255), 1)
                 values.append("%.5f" % grav_center)
@@ -243,15 +285,25 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
                 filename = img_name.split(".")[0]+".png"
                 FileManager.SaveImage(pred, filename, classification_output_path)
 
+            if save_overlay:
+                overlayed = create_overlay_image(img_name, pred, images_path)
+                FileManager.SaveImage(overlayed, img_name, overlay_path)
+
             i += 1
             if i >= length:
                 break
 
 
-def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, weights_filepath, prediction_output_path):
-    idg = ImageDataGenerator(test_images_path, test_labels_path, width, height, nblbl, norm_type=NormType.Equalize, magentize=True, rotate=False, shuffled=False, yield_names=True)
+def evaluate_model(width, height, test_images_path, test_labels_path,
+                   weights_filepath, prediction_output_path, norm_type=NormType.Equalize, magentize=True, torify=False):
+
+    idg = ImageDataGenerator(test_images_path, test_labels_path, width, height,
+                             norm_type=norm_type, magentize=magentize, rotate=False,
+                             shuffled=False, yield_names=True, torify=torify)
+
     test_generator = izip(idg.image_generator(), idg.label_generator(binarized=False))
 
+    nblbl = Classes.nb_lbl(torify)
     autoencoder = create_model(width, height, nblbl)
     autoencoder.load_weights(weights_filepath)
 
@@ -260,13 +312,14 @@ def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, wei
     Vegetation = [0, 0, 255]
     Void = [0, 0, 0]
 
-    label_colours = np.array([Void, Sky, Building, Vegetation])
+    label_colours = np.array([Sky, Building, Vegetation, Void])
 
     if not os.path.exists(prediction_output_path):
         os.makedirs(prediction_output_path)
 
     length = len(idg.img_files)
 
+    overlays_path = os.path.join(prediction_output_path, "overlays")
     i = 0
     true_labs = []
     pred_labs = []
@@ -279,7 +332,12 @@ def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, wei
         true_labs.append(lbl.reshape(width * height))
         pred_labs.append(max_output)
         pred = visualize(max_output.reshape(width, height), label_colours, nblbl)
+        if torify:
+            pred = idg.image_transform.untorify_image(pred, cv2.INTER_NEAREST)
         FileManager.SaveImage(pred, name.split(".")[0]+".png", prediction_output_path)
+        overlayed = create_overlay_image(name, pred, test_images_path)
+        FileManager.SaveImage(overlayed, name, overlays_path)
+
         i += 1
         if i == length:
             break
@@ -287,10 +345,21 @@ def evaluate_model(width, height, nblbl, test_images_path, test_labels_path, wei
     true_labs = np.array(true_labs).ravel()
     pred_labs = np.array(pred_labs).ravel()
     cm = confusion_matrix(true_labs, pred_labs)
-    target_names = ["Void", "Sky", "Veg", "Built"]
+    target_names = ["Sky", "Veg", "Built", "Void"]
+    if torify:
+        target_names = target_names[:-1]
     plot_confusion_matrix(cm, target_names, True, output_filename=os.path.join(prediction_output_path, "confusion_matrix.jpg"))
     with open(os.path.join(prediction_output_path, "report.txt"), "w") as f:
-        f.write(classification_report(true_labs, pred_labs, target_names=target_names))
+        f.write(classification_report(true_labs, pred_labs, target_names=target_names, digits=5))
+
+    svf_graph_and_mse(test_labels_path, prediction_output_path, prediction_output_path)
+
+
+def create_overlay_image(name, pred, src_images_path):
+    overlay_src = FileManager.LoadImage(name, src_images_path)
+    overlay_src = cv2.resize(overlay_src, pred.shape[:2])
+    overlayed = cv2.addWeighted(overlay_src.astype(np.uint8), 0.8, pred.astype(np.uint8), 0.2, 0)
+    return overlayed
 
 
 def plot_confusion_matrix(cm, classes,
@@ -348,7 +417,8 @@ def visualize(temp, label_colours, nblbl):
 def save_history_graphs(history, title, path):
     if not os.path.exists(path):
         os.makedirs(path)
-
+    plt.cla()
+    plt.clf()
     plt.plot(history.history['acc'])
     plt.plot(history.history['val_acc'])
     plt.title('model accuracy')
@@ -369,10 +439,13 @@ def save_history_graphs(history, title, path):
     plt.savefig(outpath)
 
 
-def add_weights_entry(path, input_size, nb_epoch, batch_size, train_data_sz, val_data_sz, graph_path, magentize=True, normalize=True, data_augmentation=False, sample_per_epoch=0, nb_val_sample=0, comments="", torify=True):
+def add_weights_entry(path, input_size, nb_epoch, batch_size, train_data_sz, val_data_sz, weights_filepath, graph_path, magentize=True, norm_type=NormType.Equalize, data_augmentation=False, sample_per_epoch=0, nb_val_sample=0, comments="", torify=True):
     with open("./cnn/weights_table.txt", "a") as f:
         str_insize = "%dx%d" % input_size
-        f.write("%s\t%s\t%d\t%d\t%d\t%d\t%r\t%r\t%r\t%d\t%d\t%s\t%s\t%r\n" % (path, str_insize, nb_epoch, batch_size, train_data_sz, val_data_sz, magentize, normalize, data_augmentation, sample_per_epoch, nb_val_sample, graph_path, comments, torify))
+        cmd = "python main.py -i path/to/inputs -o /path/to/output --width %d --height %d -w %s --csv-file path/to/csv -n %d" % (input_size[0], input_size[1], os.path.abspath(weights_filepath), int(norm_type))
+        cmd += "-t" if torify else ""
+        cmd += "-m" if magentize else ""
+        f.write("%s\t%s\t%d\t%d\t%d\t%d\t%d\t%s\t%r\t%d\t%d\t%s\t%s\t%r\t%s\n" % (path, str_insize, nb_epoch, batch_size, train_data_sz, val_data_sz, magentize, norm_type, data_augmentation, sample_per_epoch, nb_val_sample, graph_path, comments, torify, cmd))
 
 
 def test_data_augmentation(dataset_path, width, height, nblbl):
@@ -387,7 +460,7 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
 
     idg_test = ImageDataGenerator(img_path, lbl_path, width, height, nblbl, allow_transforms=True, rotate=True, transforms=transforms,
                                   lower_rotation_bound=10, higher_rotation_bound=350, magentize=True,
-                                   norm_type=NormType.Equalize, seed=random.randint(1,1e6), shuffled=False)
+                                  norm_type=NormType.Equalize, seed=random.randint(1,1e6), shuffled=False)
     generator = izip(idg_test.image_generator(), idg_test.label_generator())
 
     i = 0
@@ -396,18 +469,38 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
             break
         i += 1
 
+def params_gen():
+    for width in range(360, 600, 120):
+        for norm_type in [NormType.Equalize + NormType.SPHcl, NormType.Equalize, NormType.Equalize + NormType.StdMean, NormType.Nothing]:
+            for balanced in [True, False]:
+                for magentize in [True, False]:
+                    yield (width, norm_type, balanced, magentize, not magentize)
 
-def main(width, height, torify):
+
+
+def main(class_weigths):
     nb_epoch = 100
     batch_size = 6
+    norm_type = NormType.Equalize
+    magentize = True
+    width = 480
+    height = 480
+    torify = not magentize
+
     dataset_path = "./cnn/dataset/"
-    test_images_path = "./cnn/test_images/"
+    test_images_path = "/home/brandtk/Desktop/SVF/outputs_NE"
 
     datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #datestr = "2017-04-28_17:49:07"
+    #datestr = "2017-05-30_23:34:42"
     weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
 
-    #train_model(width, height, torify, dataset_path, weigths_filepath)
-    train_model_generators(width, height, torify, dataset_path, weigths_filepath, nb_epoch, balanced=True)
-    evaluate_model(width, height, torify, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels", weigths_filepath, "./cnn/evaluations/predictions%s" % datestr)
-    test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)
+    train_model(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+                class_weights=class_weigths, norm_type=norm_type, magentize=magentize, torify=torify,
+                early_stopping=True)
+    #train_model_generators(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+    #                       class_weights=class_weigths, norm_type=norm_type, balanced=True, magentize=magentize,
+    #                       torify=torify, early_stopping=True)
+    evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
+                   weigths_filepath, "./cnn/evaluations/predictions%s" % datestr,
+                   norm_type=norm_type, magentize=magentize, torify=torify)
+    #test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

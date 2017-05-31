@@ -80,7 +80,7 @@ class SkyViewFactorCalculator:
                                                       center=center, radius=radius)
 
     @staticmethod
-    def compute_factor_annotated_labels(annotated, class_labels=[1, 2, 3], number_of_steps=120, center=(720, 720), radius=720):
+    def compute_factor_annotated_labels(annotated, class_labels=[0, 1, 2], number_of_steps=120, center=(720, 720), radius=720):
         assert isinstance(class_labels, (list, tuple))
         factors = []
         for c in class_labels:

@@ -102,13 +102,39 @@ class DatasetManager:
 
         files = [f for f in os.listdir(self.labels_path) if re.match(self.reg, f.lower())]
 
-        nbVoid = cv2.countNonZero(cv2.bitwise_not(self.mask))
+        void_mask = cv2.bitwise_not(self.mask)
+        nbVoid = cv2.countNonZero(void_mask)
 
         for f in files:
             imgSrc = FileManager.LoadImage(f, self.labels_path)
             b, g, r = cv2.split(imgSrc)
 
             annots = np.zeros(b.shape, np.uint8)
+
+            ok = False
+            i = 0
+            ker = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            void_mask_ex = cv2.dilate(void_mask, ker)
+            while not ok:
+                bprime = cv2.dilate(b, ker)
+                gprime = cv2.dilate(g, ker)
+                rprime = cv2.dilate(r, ker)
+
+                b = cv2.bitwise_or(cv2.bitwise_and(bprime, void_mask_ex), b)
+                g = cv2.bitwise_or(cv2.bitwise_and(gprime, void_mask_ex), g)
+                r = cv2.bitwise_or(cv2.bitwise_and(rprime, void_mask_ex), r)
+
+                extended = cv2.bitwise_or(cv2.bitwise_or(b, g), r)
+                extended = cv2.morphologyEx(extended, cv2.MORPH_CLOSE, ker)
+                ok = abs(cv2.countNonZero(cv2.bitwise_and(extended, self.mask)) - cv2.countNonZero(self.mask)) < 5
+                i += 1
+                if i > 10:
+                    print "No convergence found while filling holes between void and classes in image %s, please correct the image before continue" % f
+                    cv2.imshow(f, extended)
+                    cv2.imshow("b", b)
+                    cv2.waitKey(0)
+                    return
+
 
             idxSky = b > 0
             idxVegetation = g > 0
@@ -117,7 +143,7 @@ class DatasetManager:
             annots[idxSky] = Classes.SKY
             annots[idxVegetation] = Classes.VEGETATION
             annots[idxBuild] = Classes.BUILT
-            annots[self.mask == 0] = Classes.VOID
+            annots[void_mask > 0] = Classes.VOID
 
             self.classes_weigth[Classes.SKY] += cv2.countNonZero(b)
             self.classes_weigth[Classes.VEGETATION] += cv2.countNonZero(g)
@@ -243,8 +269,6 @@ class DatasetManager:
             nb = idx_sky.sum() / float(tot)
             ng = idx_veg.sum() / float(tot)
             nr = idx_build.sum() / float(tot)
-
-            # print "b=%1.2f, g=%1.2f, r = %1.2f" % (nb, ng, nr)
 
             outputs_tables = {0: output_sky_most, 1: output_veg_most, 2: output_build_most}
 

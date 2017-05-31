@@ -50,3 +50,4 @@ cnn/evaluations/
 cnn/preview/
 cnn/weights/
 outputs.txt
+core/ColorSpaceConverter.py
