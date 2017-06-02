@@ -66,7 +66,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 diffs.append(abs(percents[i - 1] - percents[i]))
             return diffs
 
-        tot = cv2.countNonZero(MaskCreator.create_circle_maskwh(self.width, self.height))
+        tot = cv2.countNonZero(MaskCreator.create_circle_maskwh(self.input_width, self.input_height))
         for img_name, lbl_name in zip(self.img_files, self.lbl_files):
             lbl_src = FileManager.LoadImage(lbl_name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 

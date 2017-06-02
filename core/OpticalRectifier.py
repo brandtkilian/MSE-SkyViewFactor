@@ -6,6 +6,7 @@ from tools.FileManager import FileManager
 import os, ntpath
 import re
 import time
+import matplotlib.pyplot as plt
 
 
 class OpticalRectifier:
@@ -37,7 +38,7 @@ class OpticalRectifier:
             tableCorr = self.get_rectified_calib_table(rI)
             summedTableSrc = [0] + [sum(self.tableSrc[:i+1]) for i in range(len(self.tableSrc))]
 
-            f = np.poly1d(np.polyfit(tableCorr, np.asarray(summedTableSrc), 3))
+            f = np.poly1d(np.polyfit(tableCorr, np.asarray(summedTableSrc), 2))
 
             for yCor in range(height):
                 for xCor in range(width):

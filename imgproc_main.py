@@ -94,38 +94,41 @@ def test_svf_algorithm():
 
     diff = abs(factor - factor2)
     assert diff > 1e-2, "SVF should not be equal between the two squares, (diff: %.5f, fact1=%.5f, fact2=%.5f)" % (diff, factor, factor2)
+    print "tests succeed !"
+    return
+    #the following test is probably wrong
+    # I'm trying to compute manualy the factor from a spherical segment and compare it to my algo
+    angle1 = 20.
+    angle2 = 10.
 
-    totradius = 720
-    radius1 = 700.0
-    radius2 = 720.0
-    r1 = radius1 / totradius
-    r2 = radius2 / totradius
-    angle1 = 0.25 * math.pi * (1 - r1)
-    angle2 = 0.25 * math.pi * (1 - r2)
-    print angle1, angle2, r1, r2
-    h1 = (1 - r1) * math.tan(angle1)
-    h2 = (1 - r2) * math.tan(angle2)
+    angle1_r = angle1 * math.pi / 180.0
+    angle2_r = angle2 * math.pi / 180.0
 
-    print h1, h2
-    h = abs(h2 - h1)
-    r = (r1 + r2) / 2
+    r1 = math.cos(angle1_r)
+    r2 = math.cos(angle2_r)
+    r = math.cos((angle2_r + angle1_r) / 2)
+    h = abs(math.sin(angle2_r) - math.sin(angle1_r))
+
+    print r1, r2
+
+    rad1 = r1 * 720
+    rad2 = r2 * 720
+
+    thickness = abs(rad1 - rad2)
+    print thickness
     print h, r
 
-    radius = (radius1 + radius2) / 2
-    thickness = int(abs(radius2 - radius1))
-    spheric_segment_area = 2 * math.pi * r * h
+    radius = (rad1 + rad2) / 2
+    spheric_segment_area = r * h
     spheric_segment_image = np.zeros((1440, 1440), np.uint8)
 
-    cv2.circle(spheric_segment_image, (720, 720), int(radius), (255, 255, 255), thickness)
+    cv2.circle(spheric_segment_image, (720, 720), int(radius), (255, 255, 255), int(thickness) if thickness <= 255 else -1)
+    cv2.imshow("debug", spheric_segment_image)
+    cv2.waitKey(0)
     factor = SkyViewFactorCalculator.compute_factor(spheric_segment_image)
 
-    cv2.imshow("asad", spheric_segment_image)
-    cv2.waitKey(0)
-
     assert abs(spheric_segment_area - factor) < 1e-3, "The area of the spheric segment computed with math formula approximation" \
-                                                      " isn't equal to the View factor computed with the iterative algortihm (%.3f, %.3f)" %(spheric_segment_area, factor)
-
-    print "tests succeed !"
+                                                      " isn't equal to the View factor computed with the iterative algortihm (%.3f, %.7f)" %(spheric_segment_area, factor)
 
 
 def svf_graphs():
@@ -154,8 +157,8 @@ def svf_graphs():
 def test_balanced_generator():
     global length
     mask = MaskCreator.create_circle_mask(1440)
-    dmgr = DatasetManager(mask, 0, 0, 1440)
-    # dmgr.create_annotated_images()
+    dmgr = DatasetManager(0, 0, (1440, 1440))
+    #dmgr.create_annotated_images()
 
     transforms = [(PossibleTransform.GaussianNoise, 0.15),
                   (PossibleTransform.Sharpen, 0.15),
@@ -163,11 +166,11 @@ def test_balanced_generator():
                   (PossibleTransform.AddSub, 0.15),
                   (PossibleTransform.Multiply, 0.15), ]
 
-    bidg = BalancedImageDataGenerator("images/src", "outputs/annoted", 480, 480, 4, allow_transforms=True,
+    bidg = BalancedImageDataGenerator("images/src", "outputs/annotated", 480, 480, 1440, 1440, allow_transforms=True,
                                                rotate=True, transforms=transforms,
-                                               lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, seed=random.randint(1, 10e6), yield_names=True)
+                                               lower_rotation_bound=0, higher_rotation_bound=360, magentize=True, seed=random.randint(1, 10e6), yield_names=True, torify=False)
 
-    idg = ImageDataGenerator("images/src", "outputs/annoted", 1440, 1440, 4, seed=random.randint(0, 1999999))
+    idg = ImageDataGenerator("images/src", "outputs/annotated", 480, 480, 1440, 1440, seed=random.randint(0, 1999999))
     l = bidg.label_generator(binarized=False)
 
     gen = izip(bidg.image_generator(roll_axis=False), bidg.label_generator(binarized=False))
@@ -185,12 +188,6 @@ def test_balanced_generator():
         idx_sky = lbl_src == Classes.SKY
         idx_veg = lbl_src == Classes.VEGETATION
         idx_build = lbl_src == Classes.BUILT
-
-        mask_sky = np.zeros(lbl_src.shape, np.uint8)
-        mask_sky[idx_sky] = 255
-        cv2.imshow("x", cv2.bitwise_and(img, img, mask=mask_sky))
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
 
         nb = idx_sky.sum() / float(tot)
         ng = idx_veg.sum() / float(tot)
@@ -293,9 +290,12 @@ def test_segmentation_watershed():
         sky_mask_gt[gt_img == 1] = 255
         svf_gt = SkyViewFactorCalculator.compute_factor(sky_mask_gt)
 
-        variance = segmentor.compute_variance(img,window_size=11)
-        norm = cv2.normalize(variance, None, 0, 255, cv2.NORM_MINMAX)
-        cv2.imshow("norm", norm)
+        img = cv2.resize(img, (480, 480))
+        variance = segmentor.compute_variance(img,window_size=31)
+        mean = cv2.mean(variance)
+        _, thresh = cv2.threshold(variance.astype(np.float32), mean[0]*1.5, 255, cv2.THRESH_BINARY_INV)
+
+        cv2.imshow("norm", thresh)
         cv2.waitKey(0)
 
 
@@ -330,15 +330,17 @@ def test_segmentation_watershed():
 
 if __name__ == '__main__':
     #svf_graph_and_mse()
-    svf_graphs()
+    #svf_graphs()
     #test_balanced_generator()
     #sky_view_factor_test()
     #sky_view_factor_angle_test()
     #test_svf_algorithm()
 
     folds = ["sky", "veg", "built"]
+    test_balanced_generator()
 
-    mask = MaskCreator.create_circle_mask(1440)
+    #test_svf_algorithm()
+    #mask = MaskCreator.create_circle_mask(1440)
     #for i, n in enumerate(folds):
     #    BSPMarkerCreator.create_markers(mask, "images/predictions", "outputs/markers_%s" % n, foreground_channel=i, skeletonize=False)
     #test_segmentation_watershed()

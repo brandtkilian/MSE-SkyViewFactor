@@ -62,6 +62,9 @@ class ImageDataGenerator:
             delta_angle = self.angle / target_height
             self.image_transform = ImageTransform(input_width, input_height, (input_width / 2, input_height / 2), radius, delta_angle, delta_r)
 
+        self.input_width = input_width
+        self.input_height = input_height
+
         self.lower_rotation_bound = lower_rotation_bound
         self.higher_rotation_bound = higher_rotation_bound
         self.norm_type = norm_type

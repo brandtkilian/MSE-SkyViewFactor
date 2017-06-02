@@ -19,7 +19,8 @@ def rectify_all_inputs(inputFolder, outputFolder):
     imgHeight = 1440
 
     oprec = OpticalRectifier(tableSrc, imgViewAngle, imgWidth, imgHeight)
-    oprec.rectify_all_inputs(inputFolder, outputFolder)
+    oprec
+    #oprec.rectify_all_inputs(inputFolder, outputFolder)
 
 
 def merge_masks():
