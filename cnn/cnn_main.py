@@ -125,7 +125,8 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
                   (PossibleTransform.Sharpen, 0.1),
                   (PossibleTransform.MultiplyPerChannels, 0.1),
                   (PossibleTransform.AddSub, 0.1),
-                  (PossibleTransform.Multiply, 0.1), ]
+                  (PossibleTransform.Multiply, 0.1),
+                  (PossibleTransform.AddSubChannel, 0.1)]
     n_transforms = len(transforms)
 
     if balanced:
@@ -159,18 +160,18 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
 
         if samples_valid < 0:
             samples_valid = len(idg_valid.lbl_files)
-        min_delta=1e-3
+        min_delta=1e-2
         patience=15
         monitor='loss'
         mode='auto'
         earlyStopping = EarlyStopping(monitor=monitor, min_delta=min_delta, patience=patience, verbose=1, mode=mode)
-        callback = []
+        callbacks = []
         if early_stopping:
-            callback = callback.append(earlyStopping)
+            callbacks.append(earlyStopping)
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
                                             verbose=1, validation_data=valid_generator,
                                             nb_val_samples=samples_valid,
-                                            class_weight=class_weights, callbacks=callback)
+                                            class_weight=class_weights, callbacks=callbacks)
 
         autoencoder.save_weights(weights_filepath)
 
@@ -199,7 +200,7 @@ def test_model(width, height, torify, test_images_path, weights_filepath, predic
     Void = [0, 0, 0]
 
     label_colours = np.array([Sky, Building, Vegetation, Void])
-    idg = get_images_generator_for_cnn(test_images_path, width, height, torify, norm_type=norm_type, magentize=magentize)
+    idg = get_images_generator_for_cnn(test_images_path, width, height, norm_type=norm_type, magentize=magentize, torify=torify)
     idg.yield_names = True
     length = len(idg.img_files)
 
@@ -424,7 +425,7 @@ def save_history_graphs(history, title, path):
     plt.title('model accuracy')
     plt.ylabel('accuracy')
     plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
+    plt.legend(['train', 'valid'], loc='upper left')
     outpath = os.path.join(path, "%s-%s.jpg" % (title, "acc"))
     plt.savefig(outpath)
     plt.clf()
@@ -469,6 +470,7 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
             break
         i += 1
 
+
 def params_gen():
     for width in range(360, 600, 120):
         for norm_type in [NormType.Equalize + NormType.SPHcl, NormType.Equalize, NormType.Equalize + NormType.StdMean, NormType.Nothing]:
@@ -480,27 +482,30 @@ def params_gen():
 
 def main(class_weigths):
     nb_epoch = 100
-    batch_size = 6
-    norm_type = NormType.Equalize
+    batch_size = 8
+    norm_type = NormType.EqualizeClahe + NormType.SPHcl
     magentize = True
     width = 480
     height = 480
     torify = not magentize
 
+
     dataset_path = "./cnn/dataset/"
     test_images_path = "/home/brandtk/Desktop/SVF/outputs_NE"
 
-    datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-    #datestr = "2017-05-30_23:34:42"
-    weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
 
-    train_model(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
-                class_weights=class_weigths, norm_type=norm_type, magentize=magentize, torify=torify,
-                early_stopping=True)
-    #train_model_generators(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
-    #                       class_weights=class_weigths, norm_type=norm_type, balanced=True, magentize=magentize,
-    #                       torify=torify, early_stopping=True)
-    evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
-                   weigths_filepath, "./cnn/evaluations/predictions%s" % datestr,
-                   norm_type=norm_type, magentize=magentize, torify=torify)
-    #test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)
+    for b in [False, True]:
+        datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        #datestr = "2017-05-30_23:34:42"
+        weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
+
+        #train_model(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+        #            class_weights=class_weigths, norm_type=norm_type, magentize=magentize, torify=torify,
+        #            early_stopping=True)
+        train_model_generators(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+                               class_weights=class_weigths, norm_type=norm_type, balanced=b, magentize=magentize,
+                               torify=torify, early_stopping=False)
+        evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
+                       weigths_filepath, "./cnn/evaluations/predictions%s" % datestr,
+                       norm_type=norm_type, magentize=magentize, torify=torify)
+        #test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

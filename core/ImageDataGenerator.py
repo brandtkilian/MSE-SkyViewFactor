@@ -8,6 +8,7 @@ import numpy as np
 from enum import IntEnum
 from tools.ImageTransform import ImageTransform
 from core.ColorSpaceConverter import ColorSpaceConverter
+from core.ClassesEnum import Classes
 
 
 class NormType(IntEnum):
@@ -25,7 +26,7 @@ class PossibleTransform(IntEnum):
     Sharpen = 3
     AddSub = 5
     AddSubChannel = 7
-    Invert = 7
+    Invert = 8
 
 
 class TransformDescriptor():
@@ -129,7 +130,7 @@ class ImageDataGenerator:
                     for td in self.transforms_family:
                         img = td.call(img)
 
-                if self.magentize and not self.torify:
+                if self.magentize:
                     img = self.colorize_void(idx, color, img)
 
                 if self.norm_type & NormType.StdMean == NormType.StdMean:
@@ -150,6 +151,8 @@ class ImageDataGenerator:
         length = len(self.lbl_files)
         if len(self.angles) == 0:
             self.init_new_generation(length)
+
+        idx = self.mask > 0
         while True:
             i = 0
             for a in self.angles:
@@ -166,6 +169,9 @@ class ImageDataGenerator:
                     lbl = self.image_transform.torify_image(lbl, interpolation=cv2.INTER_NEAREST)
                 else:
                     lbl = self.resize_if_needed(lbl, is_label=True)
+
+                if self.magentize:
+                    lbl[idx] = Classes.VOID
 
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
@@ -295,7 +301,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def add_or_sub(image):
-        bound = 50
+        bound = 30
         add_val = random.randint(0, bound) - int(bound/2)
         image = image.astype(np.int32)
         image += add_val
@@ -340,8 +346,9 @@ class ImageDataGenerator:
         return 255 - image
 
 available_transforms = dict({PossibleTransform.Multiply: ImageDataGenerator.multiply,
-                    PossibleTransform.AddSub: ImageDataGenerator.add_or_sub,
-                    PossibleTransform.GaussianNoise: ImageDataGenerator.gaussian_noise,
-                    PossibleTransform.MultiplyPerChannels: ImageDataGenerator.multiply_per_channel,
-                    PossibleTransform.Sharpen: ImageDataGenerator.sharpen,
-                    PossibleTransform.Invert: ImageDataGenerator.invert,})
+                             PossibleTransform.AddSub: ImageDataGenerator.add_or_sub,
+                             PossibleTransform.GaussianNoise: ImageDataGenerator.gaussian_noise,
+                             PossibleTransform.MultiplyPerChannels: ImageDataGenerator.multiply_per_channel,
+                             PossibleTransform.Sharpen: ImageDataGenerator.sharpen,
+                             PossibleTransform.AddSubChannel: ImageDataGenerator.add_or_sub_per_channel,
+                             PossibleTransform.Invert: ImageDataGenerator.invert,})

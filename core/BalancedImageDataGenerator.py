@@ -153,6 +153,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
     def label_generator(self, binarized=True):
         length = len(self.current_iteration_lbl)
+        idx = self.mask > 0
         while True:
             i = 0
             for a in self.angles:
@@ -170,7 +171,8 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 else:
                     lbl = self.resize_if_needed(lbl, is_label=True)
 
-                FileManager.SaveImage(lbl, name, "outputs/gen_lbl")
+                if self.magentize:
+                    lbl[idx] = Classes.VOID
 
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
@@ -206,13 +208,12 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                     img = self.normalize(img)
                 elif self.norm_type & NormType.EqualizeClahe == NormType.EqualizeClahe:
                     img = self.normalize_clahe(img)
-
                 if self.allow_transform:
                     random.shuffle(self.transforms_family)
                     for td in self.transforms_family:
                         img = td.call(img)
 
-                if self.magentize and not self.torify:
+                if self.magentize:
                     img = self.colorize_void(idx, color, img)
 
                 if self.norm_type & NormType.StdMean == NormType.StdMean:
@@ -222,7 +223,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
                 j += 1
 
-                FileManager.SaveImage(img, name, "outputs/gen_img")
                 img = np.rollaxis(img, 2) if roll_axis else img
                 if self.yield_names:
                     yield img, name
@@ -230,7 +230,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                     yield img
                 i += 1
             self.init_new_generation(length)
-
 
     def build_generator(self, list):
         def gen():

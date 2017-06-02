@@ -1,6 +1,7 @@
 from cnn.cnn_main import classify_images
 import argparse
 import os
+import time
 
 default_weights = "cnn/weights/svf_2017-05-28_14:26:01.hdf5"
 
@@ -108,6 +109,11 @@ if __name__ == '__main__':
         print "The results will be saved in %s" % csv_output
 
         print "The process can take up to few hours, be patient..."
+        start_time = time.time()
         classify_images(input_path, weight_filepath, csv_output, visualize, overlay, output_path, width, height,
                         norm_type, magentize, torify, grav_angle)
+
+        elapsed_time = time.time() - start_time
+
+        print "Done in %d seconds" % elapsed_time
 
