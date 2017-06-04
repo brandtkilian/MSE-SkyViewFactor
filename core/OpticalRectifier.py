@@ -14,7 +14,8 @@ class OpticalRectifier:
     def __init__(self, tableSrc, imgViewAngle, imgWidth, imgHeight):
         self.tableSrc = tableSrc
         self.imgViewAngle = imgViewAngle
-        self.mapping = None
+        self.mapping_x = None
+        self.mapping_y = None
         self.initialize_coords_transform(imgWidth, imgHeight)
         self.mask = np.zeros((imgHeight, imgWidth, 1), np.uint8)
         cv2.circle(self.mask, (imgWidth/2, imgHeight/2), imgWidth/2, (255, 255, 255), -1)
@@ -22,14 +23,16 @@ class OpticalRectifier:
 
     @profile
     def rectify_image(self, img):
-        rectified = img[self.mapping[..., 1], self.mapping[..., 0]]
+        rectified = cv2.remap(img, self.mapping_x, self.mapping_y, cv2.INTER_CUBIC)
         masked = cv2.bitwise_and(rectified, rectified, mask=self.mask)
+
         return masked
 
     @profile
     def initialize_coords_transform(self, width, height):
-        if self.mapping is None:
-            self.mapping = np.zeros((height, width, 2), np.int32)
+        if self.mapping_x is None or self.mapping_y is None:
+            self.mapping_x = np.zeros((height, width), np.float32)
+            self.mapping_y = np.zeros((height, width), np.float32)
 
             rI = width / 2.0
             xCenter = width / 2
@@ -52,10 +55,10 @@ class OpticalRectifier:
                     rSrc = f(rCor)
 
                     if math.fabs(rSrc) < rI:
-                        xSrc = int(xCenter + rSrc * math.sin(alpha))
-                        ySrc = int(yCenter - rSrc * math.cos(alpha))
-                        self.mapping[yCor, xCor, 0] = xSrc
-                        self.mapping[yCor, xCor, 1] = ySrc
+                        xSrc = xCenter + rSrc * math.sin(alpha)
+                        ySrc = yCenter - rSrc * math.cos(alpha)
+                        self.mapping_x[yCor, xCor] = xSrc
+                        self.mapping_y[yCor, xCor] = ySrc
 
     def get_rectified_calib_table(self, rI):
         length = len(self.tableSrc)
