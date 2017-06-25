@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
 
+
 class NagaoFilter:
+    """Class that encapsulate the creation of
+     Nagao kernels and methods to apply the filter on a image"""
 
     def __init__(self, kernelSize):
         self.setKernelSize(kernelSize)

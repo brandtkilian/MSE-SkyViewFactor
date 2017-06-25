@@ -5,6 +5,7 @@ from tools.MaskCreator import MaskCreator
 
 
 class ImageTransform:
+    """Class to resample an image to ignore void pixels"""
 
     def __init__(self, width, height, center, radius, delta_theta_deg=1.0, delta_r=0.5):
         self.width = width if width >= 0 else -width

@@ -11,6 +11,8 @@ from core.ColorSpaceConverter import ColorSpaceConverter
 
 
 class BalancedImageDataGenerator(ImageDataGenerator):
+    """Generate augmented images by applying transforms. Guarantee the balance of classes 
+    based on probabilities computed on the given dataset"""
 
     def __init__(self, src_directory, labels_directory, target_width, target_height, input_width=1440, input_height=1440, transforms=None, allow_transforms=False, rotate=False, lower_rotation_bound=0, higher_rotation_bound=180, norm_type=NormType.Equalize, magentize=True, batch_size=5, seed=1337, shuffled=True, yield_names=False, torify=True):
         ImageDataGenerator.__init__(self, src_directory, labels_directory, target_width, target_height, input_width=input_width, input_height=input_height, transforms=transforms, allow_transforms=allow_transforms,
@@ -103,6 +105,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         self.sort_lists()
 
     def sort_lists(self):
+        """Sort all maintained lists"""
         self.sky_img = sorted(self.sky_img)
         self.veg_img = sorted(self.veg_img)
         self.built_img = sorted(self.built_img)
@@ -113,6 +116,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
         self.mixed_lbl = sorted(self.mixed_lbl)
 
     def init_new_generation(self, length):
+        """Init a new generation"""
         self.angles = [a for a in self.angles_generator(length)]
         if self.shuffled:
             self.mixed_img, self.mixed_lbl = shuffle(self.mixed_img, self.mixed_lbl)
@@ -152,6 +156,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
             self.current_iteration_lbl.append(gen_lbl.next())
 
     def label_generator(self, binarized=True):
+        """Generator method for the labels annotated images"""
         length = len(self.current_iteration_lbl)
         idx = self.mask > 0
         while True:
@@ -186,6 +191,7 @@ class BalancedImageDataGenerator(ImageDataGenerator):
                 self.occurences_dict[self.current_iteration_lbl[i % length]] = self.occurences_dict.get(self.current_iteration_lbl[i % length], 0) + 1
 
     def image_generator(self, roll_axis=True):
+        """Generator method that yield bgr images"""
         color = (255, 0, 255)
         idx = self.mask > 0
         length = len(self.current_iteration_img)

@@ -4,7 +4,9 @@ import re, os
 import numpy as np
 from core.MarkersSelector import MarkersSelector
 
+
 class BSPMarkerCreator:
+    """Create markers for the Binary Space Partition Tree algortihm"""
 
     @staticmethod
     def create_markers(mask, input_rgb_labels_folder="images/labels", output_markers_path="outputs/bsp_markers", foreground_channel=0, skeletonize=True):

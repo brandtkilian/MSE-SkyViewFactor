@@ -2,7 +2,9 @@ import cv2
 import os
 import ntpath
 
+
 class FileManager:
+    """Utility class to manage images (open, save)"""
 
     @staticmethod
     def LoadImage(filename, path="images/", flags=cv2.IMREAD_COLOR):

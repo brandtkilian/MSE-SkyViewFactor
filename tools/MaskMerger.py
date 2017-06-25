@@ -5,6 +5,7 @@ from tools.FileManager import FileManager
 
 
 class MasksMerger():
+    """Static class to merge masks created with IST and resolve conflicts"""
 
     @staticmethod
     def merge_from_sky_and_build(buildPath, skyPath, mask, output_dir="outputs/"):

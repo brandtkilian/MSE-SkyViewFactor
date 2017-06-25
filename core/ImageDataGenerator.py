@@ -12,6 +12,7 @@ from core.ClassesEnum import Classes
 
 
 class NormType(IntEnum):
+    """The available equalization and normalization methods"""
     Equalize = 1
     EqualizeClahe = 2
     StdMean = 4
@@ -20,6 +21,7 @@ class NormType(IntEnum):
 
 
 class PossibleTransform(IntEnum):
+    """The available images transformation for data augmentation"""
     Multiply = 0
     MultiplyPerChannels = 1
     GaussianNoise = 2
@@ -30,6 +32,7 @@ class PossibleTransform(IntEnum):
 
 
 class TransformDescriptor():
+    """Class that encapsulate a transform on an image given a probability"""
 
     def __init__(self, callback, proba):
         self.proba = proba
@@ -58,8 +61,8 @@ class ImageDataGenerator:
 
         if torify:
             radius = input_width / 2
-            delta_r = float(radius) / target_width
-            delta_angle = self.angle / target_height
+            delta_r = float(radius) / target_height
+            delta_angle = self.angle / target_width
             self.image_transform = ImageTransform(input_width, input_height, (input_width / 2, input_height / 2), radius, delta_angle, delta_r)
 
         self.input_width = input_width
@@ -94,15 +97,18 @@ class ImageDataGenerator:
                     print(e.message)
 
     def init_new_generation(self, length):
+        """Initialize a new images generation by generating rotation angles and shuffling images"""
         self.angles = [a for a in self.angles_generator(length)]
         if self.shuffled:
             self.img_files, self.lbl_files = shuffle(self.img_files, self.lbl_files)
 
     def angles_generator(self, length):
+        """Generate random integer number between given angles boundaries"""
         for _ in range(length):
             yield random.randint(self.lower_rotation_bound, self.higher_rotation_bound)
 
     def image_generator(self, roll_axis=True):
+        """Generate images following the transformations probabilities and format"""
         color = (255, 0, 255)
         idx = self.mask > 0
         length = len(self.img_files)
@@ -115,42 +121,52 @@ class ImageDataGenerator:
                 name = self.img_files[i % length]
                 img = FileManager.LoadImage(name, self.src_directory)
 
+                # if rotation allowed the rotate the image
                 if self.rotate:
                     img = self.rotate_image(img, a)
 
+                # it resampling allowed the resample image
                 if self.torify:
                     img = self.image_transform.torify_image(img)
                 else:
-                    img = self.resize_if_needed(img)
+                    img = self.resize_if_needed(img)  # else resize image if needed
 
+                # apply equalizations operations
                 if self.norm_type & NormType.Equalize == NormType.Equalize:
                     img = self.normalize(img)
                 elif self.norm_type & NormType.EqualizeClahe == NormType.EqualizeClahe:
                     img = self.normalize_clahe(img)
 
+                # if transformations are allowed then shuffle the transform order
                 if self.allow_transform:
                     random.shuffle(self.transforms_family)
+                    # and apply the transformations on the image
                     for td in self.transforms_family:
                         img = td.call(img)
 
+                # if the void class must be colored with magenta
                 if self.magentize:
-                    img = self.colorize_void(idx, color, img)
+                    img = self.colorize_void(idx, color, img)  # fill void with magenta
 
+                # once transformations beeing applied, normalize if any normalization is required
                 if self.norm_type & NormType.StdMean == NormType.StdMean:
                     img = self.normalize_std(img)
                 elif self.norm_type & NormType.SPHcl == NormType.SPHcl:
                     img = ColorSpaceConverter.get_spherical_hcl(img)
 
                 j += 1
+                # rolling axis is for cnn else img is for visualization
                 img = np.rollaxis(img, 2) if roll_axis else img
+                # yield only image or name as well if required
                 if self.yield_names:
                     yield img, name
                 else:
                     yield img
                 i += 1
-            self.init_new_generation(length)
+            self.init_new_generation(length)  # ask for a new generation once every image has been yield
 
     def label_generator(self, binarized=True):
+        """Generate formatted labels for the CNN followin the images transformations"""
         length = len(self.lbl_files)
         if len(self.angles) == 0:
             self.init_new_generation(length)
@@ -160,26 +176,33 @@ class ImageDataGenerator:
             i = 0
             for a in self.angles:
                 name = self.lbl_files[i % length]
+                # if label should be binarized into a matrix (for cnn)
+                # then load it as colore image else grayscale mode
                 if binarized:
                     lbl = FileManager.LoadImage(name, self.labels_directory)
                 else:
                     lbl = FileManager.LoadImage(name, self.labels_directory, cv2.IMREAD_GRAYSCALE)
 
+                # if it should be rotated then rotate
                 if self.rotate:
                     lbl = self.rotate_image(lbl, a, is_label=True)
 
+                # if it should be resampled
                 if self.torify:
                     lbl = self.image_transform.torify_image(lbl, interpolation=cv2.INTER_NEAREST)
                 else:
                     lbl = self.resize_if_needed(lbl, is_label=True)
 
+                # if void classe is magentized the fill the pixel with the void label value
                 if self.magentize:
                     lbl[idx] = Classes.VOID
 
+                # if it should be binarized (for cnn) then convert it into a binary matrix
                 if binarized:
                     lbl = self.binarylab(lbl[:, :, 0], self.width, self.height, self.nblbl)
                     lbl = np.reshape(lbl, (self.width * self.height, self.nblbl))
 
+                # yield the matrix or label image with or without the file name as required
                 if self.yield_names:
                     yield lbl, name
                 else:
@@ -187,6 +210,7 @@ class ImageDataGenerator:
                 i += 1
 
     def image_batch_generator(self):
+        """Uses the images generator method to yiel batches of images"""
         batch = []
         i = 0
         for img in self.image_generator():
@@ -198,6 +222,7 @@ class ImageDataGenerator:
                 i = 0
 
     def label_batch_generator(self, binarized=True):
+        """Uses the labels generator method to yield batches of labels"""
         batch = []
         i = 0
         for lbl in self.label_generator(binarized):
@@ -209,6 +234,7 @@ class ImageDataGenerator:
                 i = 0
 
     def normalize_clahe(self, bgr):
+        """Equalize the image histogram using clahe with a window of 1/30 image width"""
         b, g, r = cv2.split(bgr)
 
         clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(int(self.width / 30), int(self.height / 30)))
@@ -220,6 +246,8 @@ class ImageDataGenerator:
         return cv2.merge(equalized)
 
     def resize_if_needed(self, img, is_label=False):
+        """Resize an image if needed (not already the expected size). 
+        If it is a label use nearest interpollation"""
         size = img.shape
         if size[1] != self.width or size[0] != self.height:
             mode = cv2.INTER_NEAREST if is_label else cv2.INTER_CUBIC
@@ -230,6 +258,9 @@ class ImageDataGenerator:
 
     @staticmethod
     def get_void_mask(width, height):
+        """Get the mask that represents the void class for a given image.
+        We make assumption that the circle containing information touch the borders and
+        have a radius of width/2"""
         mask = np.zeros((height, width, 1), np.uint8)
         cv2.circle(mask, (width / 2, height / 2), width / 2, (255, 255, 255), -1)
         mask = cv2.bitwise_not(mask)
@@ -237,6 +268,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def colorize_void(idx, color, src_img):
+        """Fill the void class with the given color"""
         b, g, r = cv2.split(src_img)
         b = b.reshape((b.shape[0], b.shape[1], 1))
         g = g.reshape((g.shape[0], g.shape[1], 1))
@@ -248,6 +280,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def normalize(bgr):
+        """Equalize histogram of the bgr image channel per channel"""
         b, g, r = cv2.split(bgr)
 
         channels = (b, g, r)
@@ -259,6 +292,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def normalize_std(rgb):
+        """Normalize image pixels by subtracting mean and divinding by standard deviation"""
         b, g, r = cv2.split(rgb)
 
         channels = (b, g, r)
@@ -275,6 +309,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def binarylab(labels, width, height, nblbl):
+        """Convert an annotated label image into a binary matrix"""
         x = np.zeros([height, width, nblbl])
         for i in range(height):
             for j in range(width):
@@ -283,6 +318,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def rotate_image(image, angle, is_label=False):
+        """Rotate an image by the given angle. If it is a label use neares interpollation."""
         height, width = image.shape[:2]
         M = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1)
         interpolation = cv2.INTER_CUBIC
@@ -294,6 +330,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def add_or_sub_per_channel(image):
+        """Add or sub a random value to each channel separatedly"""
         b, g, r = cv2.split(image)
         channels = [b, g, r]
 
@@ -304,7 +341,8 @@ class ImageDataGenerator:
 
     @staticmethod
     def add_or_sub(image):
-        bound = 30
+        """Add or sub a random value to every pixels every channel (same value everywhere)"""
+        bound = 20
         add_val = random.randint(0, bound) - int(bound/2)
         image = image.astype(np.int32)
         image += add_val
@@ -313,12 +351,14 @@ class ImageDataGenerator:
 
     @staticmethod
     def gaussian_noise(image):
+        """Apply a gaussian bluring with a kernel of random size [3, 7] (odd numbers only)"""
         kernel_size = random.randint(1, 3) * 2 + 1
         image = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
         return image
 
     @staticmethod
     def multiply(image):
+        """Mulitply all pixels (all channels) by a random value [0.9, 1.1]"""
         bound = 0.20
         image = image.astype(np.float64)
         factor = random.uniform(0.0, bound) - bound/2
@@ -329,6 +369,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def multiply_per_channel(image):
+        """Multiply each channel of the bgr image by a random value [0.9, 1.1]"""
         b, g, r = cv2.split(image)
         chans = (b, g, r)
         multiplied = []
@@ -339,6 +380,7 @@ class ImageDataGenerator:
 
     @staticmethod
     def sharpen(image):
+        """Sharpen edges of a given image by combining image and gaussian blurred image"""
         factor = random.uniform(0.2, 0.7)
         gaussian = cv2.GaussianBlur(image, (7, 7), 0)
         image = cv2.addWeighted(image, 1 + factor, gaussian, -factor, 0)
@@ -346,8 +388,10 @@ class ImageDataGenerator:
 
     @staticmethod
     def invert(image):
+        """Returns the negative of the image"""
         return 255 - image
 
+# Dictionnary a available transform to facilitate instantiation of image data generators
 available_transforms = dict({PossibleTransform.Multiply: ImageDataGenerator.multiply,
                              PossibleTransform.AddSub: ImageDataGenerator.add_or_sub,
                              PossibleTransform.GaussianNoise: ImageDataGenerator.gaussian_noise,

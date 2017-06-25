@@ -7,9 +7,10 @@ from itertools import izip, product
 from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
 from core.BalancedImageDataGenerator import BalancedImageDataGenerator
 
-os.environ['KERAS_BACKEND'] = 'tensorflow'
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5"
-os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/lib64"
+# global variables
+os.environ['KERAS_BACKEND'] = 'tensorflow'  # using tensorflow backend
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # visible GPU device ID
+os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/lib64"  # path to cuda libraries
 
 import tensorflow as tf
 from .model.ModelBuilding import create_model
@@ -20,11 +21,9 @@ import matplotlib.pyplot as plt
 import datetime
 import ntpath
 from sklearn.metrics import confusion_matrix, classification_report
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, ModelCheckpoint
 from core.SkyViewFactorCalculator import SkyViewFactorCalculator
 from core.ClassesEnum import Classes
-from tools.ImageTransform import ImageTransform
-from tools.MaskCreator import MaskCreator
 from imgproc_main import svf_graph_and_mse
 
 import random
@@ -32,6 +31,7 @@ import random
 
 def prep_data(base_path, from_path, width, height, norm_type=NormType.Equalize,
               torify=False, magentize=True):
+    """Prepare data for training"""
     train_data = []
     train_label = []
 
@@ -62,11 +62,14 @@ def get_images_generator_for_cnn(image_path, width, height, norm_type=NormType.E
     idg = ImageDataGenerator(image_path, image_path, width, height, magentize=magentize, norm_type=norm_type,
                              allow_transforms=False, rotate=False, shuffled=False, torify=torify,
                              yield_names=yield_names)
+    """Instantiate a basic data augmentor with no transforms and no rotation used for training or testing without augmentation
+    The purpose of this is to apply preprocessing steps like resizing or normalizations"""
     return idg
 
 
 def train_model(width, height, dataset_path, weights_filepath, batch_size=6, nb_epoch=100, class_weights=None,
                 magentize=True, norm_type=NormType.Equalize, torify=False, early_stopping=False):
+    """Train the model using no data augmentation"""
     np.random.seed(1337)  # for reproducibility
     nblbl = Classes.nb_lbl(torify)
     train_data, train_label, _, _ = prep_data(dataset_path, "train", width, height, torify=torify,
@@ -87,7 +90,11 @@ def train_model(width, height, dataset_path, weights_filepath, batch_size=6, nb_
         monitor = 'loss'
         mode = 'auto'
         earlyStopping = EarlyStopping(monitor=monitor, min_delta=min_delta, patience=patience, verbose=1, mode=mode)
-        callbacks = []
+        best_weight_filepath = weights_filepath + ".best"
+        print(best_weight_filepath)
+        model_checkpoint = ModelCheckpoint(best_weight_filepath, "val_loss", save_best_only=True, mode="min",
+                                           save_weights_only=True)
+        callbacks = [model_checkpoint]
         if early_stopping:
             callbacks.append(earlyStopping)
 
@@ -112,6 +119,7 @@ def train_model(width, height, dataset_path, weights_filepath, batch_size=6, nb_
 def train_model_generators(width, height, dataset_path, weights_filepath, nb_epoch=100,
                            batch_size=6, class_weights=None, samples_per_epoch=200, samples_valid=-1, balanced=True,
                            norm_type=NormType.Equalize, magentize=True, torify=False, early_stopping=False):
+    """Train a model using data augmentation"""
 
     nblbl = Classes.nb_lbl(torify)
     img_path_train = os.path.join(dataset_path, "train", "src")
@@ -120,13 +128,13 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
     img_path_valid = os.path.join(dataset_path, "valid", "src")
     lbl_path_valid = os.path.join(dataset_path, "valid", "labels")
 
-    probabilities = 0.1
-    transforms = [(PossibleTransform.GaussianNoise, 0.1),
-                  (PossibleTransform.Sharpen, 0.1),
-                  (PossibleTransform.MultiplyPerChannels, 0.1),
-                  (PossibleTransform.AddSub, 0.1),
-                  (PossibleTransform.Multiply, 0.1),
-                  (PossibleTransform.AddSubChannel, 0.1)]
+    probabilities = 0.10
+    transforms = [(PossibleTransform.GaussianNoise, probabilities),
+                  (PossibleTransform.Sharpen, probabilities),
+                  (PossibleTransform.MultiplyPerChannels, probabilities),
+                  (PossibleTransform.AddSub, probabilities),
+                  (PossibleTransform.Multiply, probabilities),
+                  (PossibleTransform.AddSubChannel, probabilities)]
     n_transforms = len(transforms)
 
     if balanced:
@@ -155,7 +163,6 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
         train_generator = izip(idg_train.image_batch_generator(), idg_train.label_batch_generator())
         valid_generator = izip(idg_valid.image_batch_generator(), idg_valid.label_batch_generator())
 
-
         s.run(tf.global_variables_initializer())
 
         if samples_valid < 0:
@@ -165,7 +172,10 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
         monitor='loss'
         mode='auto'
         earlyStopping = EarlyStopping(monitor=monitor, min_delta=min_delta, patience=patience, verbose=1, mode=mode)
-        callbacks = []
+        best_weight_filepath = weights_filepath + ".best"
+        model_checkpoint = ModelCheckpoint(best_weight_filepath, "val_loss", save_best_only=True, mode="min",
+                                           save_weights_only=True)
+        callbacks = [model_checkpoint]
         if early_stopping:
             callbacks.append(earlyStopping)
         history = autoencoder.fit_generator(train_generator, samples_per_epoch=samples_per_epoch, nb_epoch=nb_epoch,
@@ -184,12 +194,13 @@ def train_model_generators(width, height, dataset_path, weights_filepath, nb_epo
         save_history_graphs(history, "model", graph_path)
         add_weights_entry(weights_filepath, (width, height), nb_epoch, batch_size, len(idg_train.img_files),
                           len(idg_valid.img_files), weights_filepath, graph_path, data_augmentation=True,
-                          sample_per_epoch=samples_per_epoch,
+                          sample_per_epoch=samples_per_epoch, norm_type=norm_type,
                           nb_val_sample=samples_valid, comments=comments, torify=torify)
 
 
 def test_model(width, height, torify, test_images_path, weights_filepath, prediction_output_path,
                norm_type=NormType.Equalize, magentize=True):
+    """Test a model by classifying a whole images folder"""
     nblbl = Classes.nb_lbl(torify)
     autoencoder = create_model(width, height, nblbl)
     autoencoder.load_weights(weights_filepath)
@@ -223,9 +234,14 @@ def test_model(width, height, torify, test_images_path, weights_filepath, predic
 
 def classify_images(images_path, weights_filepath, csv_output, save_outputs=False, save_overlay=False, classification_output_path="outputs/predictions", width=480, height=480,
                     norm_type=NormType.EqualizeClahe, magentize=True, torify=False, gravity_angle=False):
+    """Method used by the production main that classify a whole folder of images and computing the differents view factors
+    Store the data generated into the specified folder and csv file"""
     nblbl = Classes.nb_lbl(torify)
+    # create the model
     autoencoder = create_model(width, height, nblbl)
+    # load the given weights
     autoencoder.load_weights(weights_filepath)
+    # colors for the predictions images visualization
     Sky = [255, 0, 0]
     Building = [0, 0, 255]
     Vegetation = [0, 255, 0]
@@ -233,17 +249,21 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
     label_colours = np.array([Sky, Vegetation, Building, Void])
 
     values = []
+    # create the output directory if not exists
     directory = os.path.dirname(csv_output)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
     overlay_path = os.path.join(classification_output_path, "overlays")
 
+    # headers of column in the csv output file
     headers = ["src_name", "SVF", "VVF", "BVF", "sky grav_center\n"] if gravity_angle else ["src_name", "SVF", "VVF", "BVF\n"]
 
+    # create the csv output file and write headers
     with open(csv_output, "w+") as f:
         f.write(",".join(headers))
 
+    # get the image generator that will yield images from the directory to classify
     idg = get_images_generator_for_cnn(images_path, width, height,
                                        norm_type=norm_type, magentize=magentize,
                                        torify=torify, yield_names=True)
@@ -297,7 +317,9 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
 
 def evaluate_model(width, height, test_images_path, test_labels_path,
                    weights_filepath, prediction_output_path, norm_type=NormType.Equalize, magentize=True, torify=False):
-
+    """Evaluate a trained model by computing classification report and confusion matrix
+    Store the predictions as well"""
+    # using the Image Data Generator utility class with not shufflind, no rotation, no transformation
     idg = ImageDataGenerator(test_images_path, test_labels_path, width, height,
                              norm_type=norm_type, magentize=magentize, rotate=False,
                              shuffled=False, yield_names=True, torify=torify)
@@ -309,12 +331,12 @@ def evaluate_model(width, height, test_images_path, test_labels_path,
     autoencoder.load_weights(weights_filepath)
 
     Sky = [255, 0, 0]
-    Building = [0, 255, 0]
-    Vegetation = [0, 0, 255]
+    Building = [0, 0, 255]
+    Vegetation = [0, 255, 0]
     Void = [0, 0, 0]
 
-    label_colours = np.array([Sky, Building, Vegetation, Void])
-
+    label_colours = np.array([Sky, Vegetation, Building, Void])
+    # create output directory if not exists
     if not os.path.exists(prediction_output_path):
         os.makedirs(prediction_output_path)
 
@@ -324,15 +346,19 @@ def evaluate_model(width, height, test_images_path, test_labels_path,
     i = 0
     true_labs = []
     pred_labs = []
+    # iterate over tests images
     for src_info, lbl_info in test_generator:
         src = src_info[0]
         lbl = lbl_info[0]
         name = src_info[1]
+        # use the model to predict classes
         output = autoencoder.predict_proba(np.array([src]))
+        # keep max probabilities
         max_output = np.argmax(output[0], axis=1)
         true_labs.append(lbl.reshape(width * height))
         pred_labs.append(max_output)
-        pred = visualize(max_output.reshape(width, height), label_colours, nblbl)
+        # create the visualization image from prediction (blue, green, red)
+        pred = visualize(max_output.reshape(height, width), label_colours, nblbl)
         if torify:
             pred = idg.image_transform.untorify_image(pred, cv2.INTER_NEAREST)
         FileManager.SaveImage(pred, name.split(".")[0]+".png", prediction_output_path)
@@ -340,23 +366,28 @@ def evaluate_model(width, height, test_images_path, test_labels_path,
         FileManager.SaveImage(overlayed, name, overlays_path)
 
         i += 1
+        # as we use the generator, exit the loop once every image has been used once
         if i == length:
             break
 
     true_labs = np.array(true_labs).ravel()
     pred_labs = np.array(pred_labs).ravel()
+    # compute confusion matrix using ground truth and predictions
     cm = confusion_matrix(true_labs, pred_labs)
     target_names = ["Sky", "Veg", "Built", "Void"]
     if torify:
         target_names = target_names[:-1]
+    # plot the matrix into an image and save it in the output folder
     plot_confusion_matrix(cm, target_names, True, output_filename=os.path.join(prediction_output_path, "confusion_matrix.jpg"))
+    # Generate the classification report and write it on disk
     with open(os.path.join(prediction_output_path, "report.txt"), "w") as f:
         f.write(classification_report(true_labs, pred_labs, target_names=target_names, digits=5))
-
+    # finally generate the MSE graphs
     svf_graph_and_mse(test_labels_path, prediction_output_path, prediction_output_path)
 
 
 def create_overlay_image(name, pred, src_images_path):
+    """Create an overlayed image by combining source and prediction"""
     overlay_src = FileManager.LoadImage(name, src_images_path)
     overlay_src = cv2.resize(overlay_src, pred.shape[:2])
     overlayed = cv2.addWeighted(overlay_src.astype(np.uint8), 0.8, pred.astype(np.uint8), 0.2, 0)
@@ -402,6 +433,7 @@ def plot_confusion_matrix(cm, classes,
 
 
 def visualize(temp, label_colours, nblbl):
+    """Convert the output of the classifier into a BGR image for predictions visualization"""
     black = np.zeros(temp.shape, np.uint8)
     r = black.copy()
     g = black.copy()
@@ -416,6 +448,7 @@ def visualize(temp, label_colours, nblbl):
 
 
 def save_history_graphs(history, title, path):
+    """Plot the loss/accuracy graph evolution over epochs and save the figure in the specified path"""
     if not os.path.exists(path):
         os.makedirs(path)
     plt.cla()
@@ -441,15 +474,17 @@ def save_history_graphs(history, title, path):
 
 
 def add_weights_entry(path, input_size, nb_epoch, batch_size, train_data_sz, val_data_sz, weights_filepath, graph_path, magentize=True, norm_type=NormType.Equalize, data_augmentation=False, sample_per_epoch=0, nb_val_sample=0, comments="", torify=True):
+    """Add the entry of a just finished training weights in the weights table file with used parameters and comments"""
     with open("./cnn/weights_table.txt", "a") as f:
         str_insize = "%dx%d" % input_size
         cmd = "python main.py -i path/to/inputs -o /path/to/output --width %d --height %d -w %s --csv-file path/to/csv -n %d" % (input_size[0], input_size[1], os.path.abspath(weights_filepath), int(norm_type))
-        cmd += "-t" if torify else ""
-        cmd += "-m" if magentize else ""
+        cmd += " -t" if torify else ""
+        cmd += " -m" if magentize else ""
         f.write("%s\t%s\t%d\t%d\t%d\t%d\t%d\t%s\t%r\t%d\t%d\t%s\t%s\t%r\t%s\n" % (path, str_insize, nb_epoch, batch_size, train_data_sz, val_data_sz, magentize, norm_type, data_augmentation, sample_per_epoch, nb_val_sample, graph_path, comments, torify, cmd))
 
 
 def test_data_augmentation(dataset_path, width, height, nblbl):
+    """Just generate augmented images for tests purpose"""
     img_path = os.path.join(dataset_path, "train", "src")
     lbl_path = os.path.join(dataset_path, "train", "labels")
 
@@ -471,18 +506,10 @@ def test_data_augmentation(dataset_path, width, height, nblbl):
         i += 1
 
 
-def params_gen():
-    for width in range(360, 600, 120):
-        for norm_type in [NormType.Equalize + NormType.SPHcl, NormType.Equalize, NormType.Equalize + NormType.StdMean, NormType.Nothing]:
-            for balanced in [True, False]:
-                for magentize in [True, False]:
-                    yield (width, norm_type, balanced, magentize, not magentize)
-
-
-
 def main(class_weigths):
-    nb_epoch = 100
-    batch_size = 8
+    """Main"""
+    nb_epoch = 200
+    batch_size = 6
     norm_type = NormType.EqualizeClahe + NormType.SPHcl
     magentize = True
     width = 480
@@ -493,19 +520,21 @@ def main(class_weigths):
     dataset_path = "./cnn/dataset/"
     test_images_path = "/home/brandtk/Desktop/SVF/outputs_NE"
 
+    datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    datestr = "2017-06-08_12:07:31"
+    weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
 
-    for b in [False, True]:
-        datestr = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        #datestr = "2017-05-30_23:34:42"
-        weigths_filepath = "./cnn/weights/svf_%s.hdf5" % datestr
+    #train_model(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+    #            class_weights=class_weigths, norm_type=norm_type, magentize=magentize, torify=torify,
+    #            early_stopping=False)
+    #evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
+    #               weigths_filepath+".best", "./cnn/evaluations/predictions%s" % datestr,
+    #               norm_type=norm_type, magentize=magentize, torify=torify)
 
-        #train_model(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
-        #            class_weights=class_weigths, norm_type=norm_type, magentize=magentize, torify=torify,
-        #            early_stopping=True)
-        train_model_generators(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
-                               class_weights=class_weigths, norm_type=norm_type, balanced=b, magentize=magentize,
-                               torify=torify, early_stopping=False)
-        evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
-                       weigths_filepath, "./cnn/evaluations/predictions%s" % datestr,
-                       norm_type=norm_type, magentize=magentize, torify=torify)
-        #test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)
+    #train_model_generators(width, height, dataset_path, weigths_filepath, nb_epoch=nb_epoch, batch_size=batch_size,
+    #                       class_weights=class_weigths, norm_type=norm_type, balanced=True, magentize=magentize,
+    #                       torify=torify, early_stopping=False)
+    evaluate_model(width, height, "./cnn/dataset/tests/src", "./cnn/dataset/tests/labels",
+                   weigths_filepath + ".best", "./cnn/evaluations/predictions%s" % datestr,
+                   norm_type=norm_type, magentize=magentize, torify=torify)
+    #test_model(width, height, torify, test_images_path, weights_filepath=weigths_filepath, prediction_output_path="/home/brandtk/predictions%s" % datestr)

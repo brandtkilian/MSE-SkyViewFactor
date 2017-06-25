@@ -88,8 +88,8 @@ def create_model(width, height, nblbl):
     autoencoder.add(Permute((2, 1)))
     autoencoder.add(Activation('softmax'))
     adad = optimizers.Adadelta()
+    adam = optimizers.Adam()
     sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
 
-
-    autoencoder.compile(loss="categorical_crossentropy", optimizer=adad, metrics=['accuracy'])
+    autoencoder.compile(loss="categorical_crossentropy", optimizer=adam, metrics=['accuracy'])
     return autoencoder

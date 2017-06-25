@@ -6,6 +6,7 @@ import shutil
 
 
 def beginSelection(src_folder, pred_folder, out_folder, skip=0):
+    """Method to visualize prediction and select good ones manually"""
     if not os.path.exists(out_folder):
         os.makedirs(out_folder)
 

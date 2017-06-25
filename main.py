@@ -14,7 +14,7 @@ if __name__ == '__main__':
                         help='The path to the images folder')
 
     parser.add_argument('--csv-file', type=str, required="True",
-                        help='The path to the csv results file')
+                        help='The path to the csv results file. If the file exsits data are appended to the existing data in a new file name datasvf.csv')
 
     parser.add_argument('-o', '--output-path', type=str, nargs='?', default="outputs/predictions",
                         help='The path where to the output folder to store the classification results images')
@@ -36,7 +36,7 @@ if __name__ == '__main__':
                              "samplig deltas depends on the width and height")
 
     parser.add_argument('-g', '--grav-angle', action='store_true',
-                        help="Compute the angle from vertical where 50% of the SVF is found")
+                        help="Compute the angle from vertical where 50%% of the SVF is found")
 
     parser.add_argument('--width', type=int, nargs='?', default=480,
                        help='The width the images will be resized before going through'
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--normtype', type=int, nargs='?', default=2,
                         help='The normalization type Equalize = 1, EqualizeClahe : 2, StdMean = 4, SPHcl = 8, Nothing = 16'
                              'combinations are also possible, refer to the weights_table to know which normalization type'
-                             'is adapted to which weights')
+                             ' is adapted to which weights')
 
     args = parser.parse_args()
 
@@ -64,7 +64,8 @@ if __name__ == '__main__':
     input_path_valid = len(input_path) > 0 and os.path.exists(input_path) if input_path is not None else False
     csv_file_valid = csv_output.lower().endswith(".csv") if csv_output is not None else False
     sizes_valid = width > 0 and height > 0 and height % 2 == 0 and width % 2 == 0
-    weights_path_valid = os.path.exists(weight_filepath) and weight_filepath.lower().endswith(".hdf5")
+    weights_path_valid = os.path.exists(weight_filepath) and \
+                         (weight_filepath.lower().endswith(".hdf5") or weight_filepath.lower().endswith(".hdf5.best"))
 
     magentize = args.magentize
     torify = args.torify

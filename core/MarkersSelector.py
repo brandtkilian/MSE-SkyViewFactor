@@ -5,9 +5,11 @@ from tools.FileManager import FileManager
 
 
 class MarkersSelector():
+    """Class that apply image processing on images to select markers used with watershed later"""
 
     @staticmethod
     def skeletonization(binary):
+        """Skeletonize a binary mask using morphology operations"""
         element = cv2.getStructuringElement(cv2.MORPH_CROSS, (9, 9))
         done = False
         size = np.size(binary)
@@ -28,6 +30,8 @@ class MarkersSelector():
 
     @staticmethod
     def select_markers(bgr, mask, skeletonize=False, eroding_size=31):
+        """Select markery by applying multiconditionnal thresholds on the hsv colorspace
+        This technic comes from a paper"""
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         h, s, v = cv2.split(hsv)
         sky_idx1 = np.logical_and(s < 13, v > 216)
@@ -56,7 +60,7 @@ class MarkersSelector():
 
     @staticmethod
     def select_markers_otsu(bgr, mask, skeletonize=False, eroding_size=31, bluring_size=7, use_nagao=False):
-        b, g, r = cv2.split(bgr)
+        """Select markes by applying otsu thresholding op on the grayscaled image"""
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
         bluring_size = bluring_size if bluring_size % 2 != 0 else bluring_size + 1

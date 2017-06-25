@@ -6,9 +6,12 @@ from sklearn.metrics import mean_squared_error
 
 
 class SkyViewFactorCalculator:
+    """Compute the sky view factor from different input formats.
+    Uses an iterative algorithm"""
 
     @staticmethod
     def compute_factor(binary_mask, number_of_steps=120, center=(720, 720), radius=720):
+        """Compute the view factor from a binary mask"""
         assert len(center) == 2, "SVFCalculator: Center must be a tuple or a list of length 2"
         center = tuple([int(abs(c)) for c in center])
         radius = abs(radius)
@@ -60,17 +63,18 @@ class SkyViewFactorCalculator:
 
     @staticmethod
     def compute_factor_bgr_labels(bgr, number_of_steps=120, center=(720, 720), radius=720):
+        """Compute three factors from a bgr images, each channel considered as a binary mask"""
         b, g, r = cv2.split(bgr)
-
         chans = [b, g, r]
-        factors = []
-        for c in chans:
-            factors.append(SkyViewFactorCalculator.compute_factor(c, number_of_steps=number_of_steps,
-                                                                  center=center, radius=radius))
+        factors = [0, 0, 0]
+        for i, c in enumerate(chans):
+            factors[i] = SkyViewFactorCalculator.compute_factor(c, number_of_steps=number_of_steps,
+                                                                  center=center, radius=radius)
         return factors
 
     @staticmethod
     def compute_factor_annotated_label(annotated, class_label=1, number_of_steps=120, center=(720, 720), radius=720):
+        """Compute the factor for a given class from a annotated images (one integer value per class)"""
         class_label = int(class_label)
         idx = annotated == class_label
         mask = np.zeros(annotated.shape, np.uint8)
@@ -80,7 +84,8 @@ class SkyViewFactorCalculator:
                                                       center=center, radius=radius)
 
     @staticmethod
-    def compute_factor_annotated_labels(annotated, class_labels=[0, 1, 2], number_of_steps=120, center=(720, 720), radius=720):
+    def compute_factor_annotated_labels(annotated, class_labels=[1, 2, 3], number_of_steps=120, center=(720, 720), radius=720):
+        """Compute multiple factors one per classes given in the class_labels list from an annotated image"""
         assert isinstance(class_labels, (list, tuple))
         factors = []
         for c in class_labels:
@@ -96,10 +101,10 @@ class SkyViewFactorCalculator:
     @staticmethod
     def compute_sky_angle_estimation(binary_mask, center, radius_low, radius_top, epsilon=1e-2, sky_view_factor=-1,
                                      number_of_steps=120, center_factor=(720, 720), radius_factor=720, n_iter=0):
+        """Compute the angle in which 50% of the sky view factor is included from vertical"""
         range_radius = abs(radius_top - radius_low)
         first_radius = int(math.ceil(radius_low + 0.25 * range_radius))
         second_radius = int(math.ceil(radius_low + 0.75 * range_radius))
-
 
         if sky_view_factor < 0:
             sky_view_factor = SkyViewFactorCalculator.compute_factor(binary_mask, number_of_steps=number_of_steps,

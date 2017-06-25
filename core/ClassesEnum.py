@@ -2,6 +2,7 @@ from enum import IntEnum
 
 
 class Classes(IntEnum):
+    """Enumerator to describes classes"""
     SKY = 0
     VEGETATION = 1
     BUILT = 2

@@ -8,6 +8,7 @@ import skimage.segmentation, skimage.color
 
 
 class SkySegmentor():
+    """Static class for segmenting sky from bgr images"""
 
     @staticmethod
     def get_sky_mask_by_blue_color(BGRImage, BlueT):

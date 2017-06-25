@@ -15,6 +15,7 @@ from tools.MaskCreator import MaskCreator
 
 
 class DatasetManager:
+    """Utility class to manage the dataset"""
 
     def __init__(self, valid_percentage, test_percentage, input_size, labels_path="images/labels", src_path="images/src", annot_output_path="outputs/annotated", dataset_output_path="outputs/dataset"):
         self.labels_path = labels_path
@@ -37,6 +38,7 @@ class DatasetManager:
         self.classes_weigth = dict({Classes.SKY: 0, Classes.BUILT: 0, Classes.VEGETATION: 0, Classes.VOID: 0})
 
     def remask_labels(self):
+        """Apply a mask on every labels to mask every insignificant pixels (outside the fisheye cirlce)"""
         reg = r'\w+\.(jpg|jpeg|png)'
         files = [f for f in os.listdir(self.labels_path) if re.match(reg, f.lower())]
         for f in files:
@@ -47,6 +49,8 @@ class DatasetManager:
             FileManager.SaveImage(imgSrc, f, self.labels_path)
 
     def check_for_labels_sanity(self, output_unsanity_masks_path="outputs/unsanityMask", output_sane_labels_path="outputs/labels"):
+        """Check if every given labels only contains pure red, blue and green or black without collision else try to
+        autocorrect the conflict or create a mask and notify user"""
         self.remask_labels()
 
         if not os.path.exists(output_unsanity_masks_path):
@@ -94,6 +98,8 @@ class DatasetManager:
         return nbUnsane
 
     def create_annotated_images(self):
+        """Create the annotated images, images with one integer value per classes
+        from the rgb labels images"""
         if os.path.exists(self.dataset_output_path):
             return
 
@@ -130,9 +136,6 @@ class DatasetManager:
                 i += 1
                 if i > 10:
                     print "No convergence found while filling holes between void and classes in image %s, please correct the image before continue" % f
-                    cv2.imshow(f, extended)
-                    cv2.imshow("b", b)
-                    cv2.waitKey(0)
                     return
 
 
@@ -159,6 +162,8 @@ class DatasetManager:
         self.labels_path = self.annot_output_path
 
     def create_final_dataset(self):
+        """Create the final dataset by creating the directories hierarchy and 
+        splitting the data following the given proportions"""
         if not os.path.exists(self.dataset_output_path):
             os.makedirs(self.dataset_output_path)
         else:
@@ -226,12 +231,11 @@ class DatasetManager:
             srcImg = FileManager.LoadImage(srcs[i], self.src_path)
             lblImg = FileManager.LoadImage(labels[i], self.labels_path, cv2.IMREAD_GRAYSCALE)
 
-            #resizedSrcImg = cv2.resize(srcImg, self.targetSize, interpolation=cv2.INTER_CUBIC)
-            #resizedLblImg = cv2.resize(lblImg, self.targetSize, interpolation=cv2.INTER_NEAREST)
             FileManager.SaveImage(srcImg, srcs[i], path_src)
             FileManager.SaveImage(lblImg, labels[i], path_labels)
 
     def resize_images(self, input_dir, output_dir):
+        """Resize a directory of images to the given size of desired dataset"""
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
@@ -244,6 +248,11 @@ class DatasetManager:
 
     def split_dataset_by_mostly_represented_class(self, input_src, input_annotated, mask, output_sky_most="outputs/sorted_dataset/sky/", output_veg_most="outputs/sorted_dataset/veg/",
                                                   output_build_most="outputs/sorted_dataset/build/", output_mixed="outputs/sorted_dataset/mixed/"):
+        """Split the dataset into 4 sub-groups following the classes distribution.
+        -Sky
+        -Vegetation
+        -Building
+        -Mixed"""
         if not os.path.exists(output_sky_most):
             os.makedirs(output_sky_most)
         if not os.path.exists(output_veg_most):
@@ -300,6 +309,7 @@ class DatasetManager:
                                                                  output_build_most="outputs/sorted_dataset/build/",
                                                                  output_mixed="outputs/sorted_dataset/mixed/",
                                                                  output_path="outputs/synthetic_dataset/"):
+        """Create a synthetic dataset that guaranty that every classes will be represented almost equally"""
         def compute_diffs(percents):
             diffs = []
             for i in range(len(percents)):

@@ -97,7 +97,7 @@ def test_svf_algorithm():
     print "tests succeed !"
     return
     #the following test is probably wrong
-    # I'm trying to compute manualy the factor from a spherical segment and compare it to my algo
+    # I'm trying to compute manually the factor from a spherical segment and compare it to my algo
     angle1 = 20.
     angle2 = 10.
 
@@ -256,8 +256,10 @@ def svf_graph_and_mse(path_gt, path_pred, output_path):
         plt.ylabel("Predict")
         plt.axis((0, 1, 0, 1))
         plt.plot([0, 1], [0, 1], ls="--", c=".2")
+        plt.subplots_adjust(bottom=.1, left=.1)
         plt.savefig(os.path.join(output_path, "mse_%s.jpg" % labels[i]))
         plt.cla()
+        plt.clf()
         i += 1
 
 
@@ -348,9 +350,3 @@ if __name__ == '__main__':
     #MasksMerger.merge_masks_from_all("images/tomerge/sky", "images/tomerge/veg", "images/tomerge/built", mask, "outputs/merged")
     #MasksMerger.merge_from_sky_and_build("images/build", "images/sky", mask, "outputs/megerino")
     #beginSelection("images/SVF-dataset-150/src", "images/SVF-dataset-150/labels", "outputs/default")
-
-
-
-
-
-

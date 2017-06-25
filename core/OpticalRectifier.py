@@ -6,10 +6,11 @@ from tools.FileManager import FileManager
 import os, ntpath
 import re
 import time
-import matplotlib.pyplot as plt
+from tools.MaskCreator import MaskCreator
 
 
 class OpticalRectifier:
+    """Correct the images optical projection according to calibration distances"""
 
     def __init__(self, tableSrc, imgViewAngle, imgWidth, imgHeight):
         self.tableSrc = tableSrc
@@ -17,8 +18,7 @@ class OpticalRectifier:
         self.mapping_x = None
         self.mapping_y = None
         self.initialize_coords_transform(imgWidth, imgHeight)
-        self.mask = np.zeros((imgHeight, imgWidth, 1), np.uint8)
-        cv2.circle(self.mask, (imgWidth/2, imgHeight/2), imgWidth/2, (255, 255, 255), -1)
+        self.mask = MaskCreator.create_circle_mask(imgWidth)
 
 
     @profile
@@ -65,31 +65,33 @@ class OpticalRectifier:
         assert length > 0
         return np.asarray([0] + [(rI / length) * (i+1) for i in range(length)])
 
-    def rectify_all_inputs(self, inputFolder, outputFolder):
+    def rectify_all_inputs(self, input_folder, output_folder):
         def path_leaf(path):
             head, tail = ntpath.split(path)
             return tail or ntpath.basename(head)
 
         reg = r'\w+\.(jpg|gif|png)'
-        files = [f for f in os.listdir(inputFolder) if re.match(reg, f.lower())]
-        alreadyTreated = [f for f in os.listdir(outputFolder) if re.match(reg, f.lower())]
-        toTreat = list(set(files) - set(alreadyTreated))
+        files = [f for f in os.listdir(input_folder) if re.match(reg, f.lower())]
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+        already_processed = [f for f in os.listdir(output_folder) if re.match(reg, f.lower())]
+        to_process = list(set(files) - set(already_processed))
 
-        length = len(toTreat)
+        length = len(to_process)
         i = 1
         ell_time = 0
 
         print "%d images remaining" % length
-        for file in sorted(toTreat):
+        for file in sorted(to_process):
             startTime = time.time()
-            imgSrc = FileManager.LoadImage(file)
-            imgres = self.rectify_image(imgSrc)
+            img_src = FileManager.LoadImage(file, input_folder)
+            img_res = self.rectify_image(img_src)
 
-            FileManager.SaveImage(imgres, path_leaf(file), outputFolder)
+            FileManager.SaveImage(img_res, path_leaf(file), output_folder)
             ell_time += time.time() - startTime
 
             if i % 50 == 0:
-                print "%s/%s" % (outputFolder, path_leaf(file))
+                print "%s/%s" % (output_folder, path_leaf(file))
                 print "%d/%d: processed file %s" % (i, length, file)
                 print "remaining time estimate %d minutes" % (((ell_time / i) * (length - i)) / 60)
 

@@ -3,6 +3,7 @@ import numpy as np
 
 
 class MaskCreator():
+    """static class to create void mask class easily"""
 
     @staticmethod
     def create_circle_mask(diameter):
