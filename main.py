@@ -3,7 +3,11 @@ import argparse
 import os
 import time
 
-default_weights = "cnn/weights/svf_2017-05-28_14:26:01.hdf5"
+default_weights = "cnn/weights/svf_2017-06-08_12:07:31.hdf5.best"
+
+# Main script used in production to classify a whole folder of new images and get the measures
+# Beware that the given images should be optically rectified before calling this script
+# take a look to the OpticalRectifier class
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Classify pixels of every images in the given folder '
@@ -14,7 +18,8 @@ if __name__ == '__main__':
                         help='The path to the images folder')
 
     parser.add_argument('--csv-file', type=str, required="True",
-                        help='The path to the csv results file. If the file exsits data are appended to the existing data in a new file name datasvf.csv')
+                        help='The path to the csv results file. '
+                             'If the file exsits data are appended to the existing data in a new file name datasvf.csv')
 
     parser.add_argument('-o', '--output-path', type=str, nargs='?', default="outputs/predictions",
                         help='The path where to the output folder to store the classification results images')

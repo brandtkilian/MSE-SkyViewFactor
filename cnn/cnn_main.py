@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
-import os
+import os, math
 from itertools import izip, product
 
 from core.ImageDataGenerator import ImageDataGenerator, NormType, PossibleTransform
@@ -25,6 +25,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from core.SkyViewFactorCalculator import SkyViewFactorCalculator
 from core.ClassesEnum import Classes
 from imgproc_main import svf_graph_and_mse
+from shutil import copy
 
 import random
 
@@ -59,11 +60,11 @@ def prep_data(base_path, from_path, width, height, norm_type=NormType.Equalize,
 
 
 def get_images_generator_for_cnn(image_path, width, height, norm_type=NormType.Equalize, magentize=True, torify=False, yield_names=False):
+    """Instantiate a basic data augmentor with no transforms and no rotations used for training or testing without augmentation
+        The purpose of this is to apply preprocessing steps like resizing or normalizations"""
     idg = ImageDataGenerator(image_path, image_path, width, height, magentize=magentize, norm_type=norm_type,
                              allow_transforms=False, rotate=False, shuffled=False, torify=torify,
                              yield_names=yield_names)
-    """Instantiate a basic data augmentor with no transforms and no rotation used for training or testing without augmentation
-    The purpose of this is to apply preprocessing steps like resizing or normalizations"""
     return idg
 
 
@@ -236,10 +237,18 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
                     norm_type=NormType.EqualizeClahe, magentize=True, torify=False, gravity_angle=False):
     """Method used by the production main that classify a whole folder of images and computing the differents view factors
     Store the data generated into the specified folder and csv file"""
+
+    def get_line_if_possible(f):
+        try:
+            line = f.next().strip()
+        except Exception:
+            line = ""
+        return line
+
     nblbl = Classes.nb_lbl(torify)
     # create the model
     autoencoder = create_model(width, height, nblbl)
-    # load the given weights
+    # load the given weights in the model
     autoencoder.load_weights(weights_filepath)
     # colors for the predictions images visualization
     Sky = [255, 0, 0]
@@ -256,12 +265,11 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
 
     overlay_path = os.path.join(classification_output_path, "overlays")
 
-    # headers of column in the csv output file
-    headers = ["src_name", "SVF", "VVF", "BVF", "sky grav_center\n"] if gravity_angle else ["src_name", "SVF", "VVF", "BVF\n"]
+    # headers of columns in the csv output file
+    headers = ["src_name", "SVF", "VVF", "BVF", "sky_grav_center\n"] if gravity_angle else ["src_name", "SVF", "VVF", "BVF\n"]
 
     # create the csv output file and write headers
-    with open(csv_output, "w+") as f:
-        f.write(",".join(headers))
+    file_exist = os.path.isfile(csv_output)
 
     # get the image generator that will yield images from the directory to classify
     idg = get_images_generator_for_cnn(images_path, width, height,
@@ -269,10 +277,19 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
                                        torify=torify, yield_names=True)
     length = len(idg.img_files)
 
+    f_backup = None
+    suffix = ".backup%s" % datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    if file_exist:
+        copy(csv_output, csv_output + suffix)
+        f_backup = open(csv_output + suffix, "r")
+
     i = 0
-    with open(csv_output, "w") as f:
-        f.write(",".join(["src_name", "SVF", "VVF", "BVF", "sky", "grav_center_angle\n"]))
+    with open(csv_output, "w+") as f:
+        line = get_line_if_possible(f_backup)
+        line += ',' + ','.join(headers)
+        f.write(line)
         for (img, img_name) in idg.image_generator():
+            line = get_line_if_possible(f_backup)
             output = autoencoder.predict_proba(np.array([img]))
             reshaped_output = np.argmax(output[0], axis=1).reshape((height, width))
             pred = visualize(reshaped_output, label_colours, nblbl)
@@ -283,10 +300,16 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
             center = (pred.shape[1] / 2, pred.shape[0] / 2)
             radius = pred.shape[1] / 2
             factors = SkyViewFactorCalculator.compute_factor_bgr_labels(pred, center=center, radius=radius)
+            if line != "":
+                values.append(line)
             values.append(img_name)
             values.append("%.5f" % factors[0])
             values.append("%.5f" % factors[1])
             values.append("%.5f" % factors[2])
+
+            if save_overlay:
+                overlayed = create_overlay_image(img_name, pred, images_path)
+                FileManager.SaveImage(overlayed, img_name, overlay_path)
 
             if gravity_angle:
                 b, g, r = cv2.split(pred)
@@ -295,8 +318,9 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
                                                                                    center_factor=center,
                                                                                    radius_factor=radius,
                                                                                    sky_view_factor=factors[0])
-                rad_pixels = grav_center * (radius / 90)
-                cv2.circle(pred, center, int(rad_pixels), (255, 255, 255), 1)
+                if not math.isnan(grav_center):
+                    rad_pixels = grav_center * (radius / 90)
+                    cv2.circle(pred, center, int(rad_pixels), (255, 255, 255), 1)
                 values.append("%.5f" % grav_center)
 
             f.write(','.join(values) + "\n")
@@ -306,13 +330,10 @@ def classify_images(images_path, weights_filepath, csv_output, save_outputs=Fals
                 filename = img_name.split(".")[0]+".png"
                 FileManager.SaveImage(pred, filename, classification_output_path)
 
-            if save_overlay:
-                overlayed = create_overlay_image(img_name, pred, images_path)
-                FileManager.SaveImage(overlayed, img_name, overlay_path)
-
             i += 1
             if i >= length:
                 break
+    f_backup.close()
 
 
 def evaluate_model(width, height, test_images_path, test_labels_path,

@@ -1,7 +1,6 @@
 import cv2
 import math
 import numpy as np
-from tools.FileManager import FileManager
 from sklearn.metrics import mean_squared_error
 
 
@@ -104,7 +103,7 @@ class SkyViewFactorCalculator:
         """Compute the angle in which 50% of the sky view factor is included from vertical"""
         range_radius = abs(radius_top - radius_low)
         first_radius = int(math.ceil(radius_low + 0.25 * range_radius))
-        second_radius = int(math.ceil(radius_low + 0.75 * range_radius))
+        second_radius = int(math.ceil(radius_top - 0.25 * range_radius))
 
         if sky_view_factor < 0:
             sky_view_factor = SkyViewFactorCalculator.compute_factor(binary_mask, number_of_steps=number_of_steps,
@@ -129,11 +128,18 @@ class SkyViewFactorCalculator:
 
         radius_angle_factor = 90.0 / radius_factor
         if first_diff < epsilon or n_iter > 20:
+            if n_iter > 20:
+                return float('NaN')
             return first_radius * radius_angle_factor
         elif second_diff < epsilon:
             return second_radius * radius_angle_factor
 
-        if first_diff < second_diff:
+        if abs(first_diff - second_diff) < epsilon / 10.:
+            radius_low = int(math.ceil(first_radius - 0.25 * radius_factor))
+            radius_low = radius_low if radius_low < 0 else 1
+            radius_top = int(math.ceil(second_radius + 0.25 * radius_factor))
+            radius_top = radius_top if radius_top <= radius_factor else radius_factor
+        elif first_diff < second_diff:
             radius_low = int(math.ceil(first_radius - 0.25 * range_radius))
             radius_top = int(math.ceil(first_radius + 0.25 * range_radius))
         else:

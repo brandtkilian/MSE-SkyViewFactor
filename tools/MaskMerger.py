@@ -1,6 +1,5 @@
 import cv2
 import glob
-import ntpath
 from tools.FileManager import FileManager
 
 

@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 from core.Nagao import NagaoFilter
 from tools.FileManager import FileManager
-from tools.MaskCreator import MaskCreator
 from core.MarkersSelector import MarkersSelector
 import skimage.segmentation, skimage.color
 
