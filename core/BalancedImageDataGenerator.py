@@ -7,8 +7,6 @@ from tools.MaskCreator import MaskCreator
 from sklearn.utils import shuffle
 import random
 import numpy as np
-from core.ColorSpaceConverter import ColorSpaceConverter
-
 
 class BalancedImageDataGenerator(ImageDataGenerator):
     """Generate augmented images by applying transforms. Guarantee the balance of classes 
@@ -224,8 +222,6 @@ class BalancedImageDataGenerator(ImageDataGenerator):
 
                 if self.norm_type & NormType.StdMean == NormType.StdMean:
                     img = self.normalize_std(img)
-                elif self.norm_type & NormType.SPHcl == NormType.SPHcl:
-                    img = ColorSpaceConverter.get_spherical_hcl(img)
 
                 j += 1
 

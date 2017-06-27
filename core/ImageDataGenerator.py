@@ -7,7 +7,6 @@ import random
 import numpy as np
 from enum import IntEnum
 from tools.ImageTransform import ImageTransform
-from core.ColorSpaceConverter import ColorSpaceConverter
 from core.ClassesEnum import Classes
 
 
@@ -16,8 +15,7 @@ class NormType(IntEnum):
     Equalize = 1
     EqualizeClahe = 2
     StdMean = 4
-    SPHcl = 8
-    Nothing = 16
+    Nothing = 8
 
 
 class PossibleTransform(IntEnum):
@@ -151,8 +149,6 @@ class ImageDataGenerator:
                 # once transformations beeing applied, normalize if any normalization is required
                 if self.norm_type & NormType.StdMean == NormType.StdMean:
                     img = self.normalize_std(img)
-                elif self.norm_type & NormType.SPHcl == NormType.SPHcl:
-                    img = ColorSpaceConverter.get_spherical_hcl(img)
 
                 j += 1
                 # rolling axis is for cnn else img is for visualization
