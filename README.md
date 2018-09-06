@@ -4,7 +4,7 @@ This was one of my Master's Degree project, inidividual project of about 100hour
 
 The project consists of computing the Skyviewfactor (SVF) from hemispheric images (taken by an embeded camera in a backpack while walking) using image processing technics and a CNN SegNet as segmentation tools.
 
-This project is part of a big project called CityFeeld developed by the Hepia in Geneva and directed by the team of Peter
+This project is part of a big project called CityFeels developed by the Hepia in Geneva and directed by the team of Peter
 Gallinelli and Reto Componovo that target the goal of increase the understanding of the factors
 that influence the well-being of people in urban environments
 
