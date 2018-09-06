@@ -2,7 +2,7 @@
 
 This was one of my Master's Degree project, inidividual project of about 100hours of work. The dataset was created by myself and dataset can't be shared due to images rights. The details and results can't be shared as well.
 
-Project that consists of computing the Skyviewfactor (SVF) from hemispheric images (taken by an embeded camera in a backpack while walking) using image processing technics and a CNN SegNet as segmentation tools.
+The project consists of computing the Skyviewfactor (SVF) from hemispheric images (taken by an embeded camera in a backpack while walking) using image processing technics and a CNN SegNet as segmentation tools.
 
 This project is part of a big project called CityFeeld developed by the Hepia in Geneva and directed by the team of Peter
 Gallinelli and Reto Componovo that target the goal of increase the understanding of the factors
@@ -40,10 +40,10 @@ The sky view factor is computed with an iterative algorithm (a kind of integral 
 view factors in complex urban canyons from fisheye photographs, January 1992. Web. 04
 June 2017](http://bit.ly/2rzb2zT)
 
-## An SegNet segmented image with the three classes segmented (overlay)
+## A SegNet segmented image with the three classes segmented (overlay)
 
 Just an image to show the segmentation results by SegNet
-![Segmentation results](https://raw.githubusercontent.com/brandtkilian/MSE-SkyViewFactor/master/figures/segmentation _overlay.jpg)
+![Segmentation results](https://raw.githubusercontent.com/brandtkilian/MSE-SkyViewFactor/master/figures/segmentation_overlay.jpg)
 
 
 
