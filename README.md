@@ -30,7 +30,7 @@ Since the dataset has been handmade for this project, I used some Data Augmentat
 
 ![Pipeline](https://raw.githubusercontent.com/brandtkilian/MSE-SkyViewFactor/master/figures/pipeline.png)
 
-1. Correct projection and keep only the 180° (half sphere) above horizontal from images. The projection is corrected with a calibration image on which a graduated perfect arc circle is taken on photograph, the radius function is the interpolated.
+1. Correct projection and keep only the 180° (half sphere) above horizontal from images. The projection is corrected with a calibration image on which a graduated perfect arc circle is taken on photograph, the radius function is then interpolated.
 2. Segment image using Image Processing algorithms or trained SegNet (SegNet is much more better)
 3. Compute Sky View Factor
 
