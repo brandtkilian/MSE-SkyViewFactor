@@ -1,6 +1,6 @@
 # MSE-SkyViewFactor
 
-This was one of my Master's Degree project, inidividual project of about 100hours of work. The dataset was created by myself and dataset can't be shared due to images rights. The details and results can't be shared as well.
+This was one of my Master's Degree project, inidividual project of about 100hours of work. The dataset was created by myself and can't be shared due to images rights. The details and results can't be shared as well.
 
 The project consists of computing the Skyviewfactor (SVF) from hemispheric images (taken by an embeded camera in a backpack while walking) using image processing technics and a CNN SegNet as segmentation tools.
 
