@@ -12,7 +12,7 @@ that influence the well-being of people in urban environments
 
 I've used multiple technics
 
-1. Segment using color: with thresholds, in HSV and RGB)
+1. Segment using color: with thresholds, in HSV and RGB
 2. Watershed: with initial markers chosed using color, Otsu tresholding or texture analysis (variance)
 
 ## SegNet
