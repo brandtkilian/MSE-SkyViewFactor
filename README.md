@@ -43,7 +43,7 @@ June 2017](http://bit.ly/2rzb2zT)
 ## A SegNet segmented image with the three classes segmented (overlay)
 
 Just an image to show the segmentation results by SegNet
-![Segmentation results](https://raw.githubusercontent.com/brandtkilian/MSE-SkyViewFactor/master/figures/segmentation_overlay.jpg)
+![Segmentation results](https://raw.githubusercontent.com/brandtkilian/MSE-SkyViewFactor/master/figures/segmentationoverlay.jpg)
 
 
 
